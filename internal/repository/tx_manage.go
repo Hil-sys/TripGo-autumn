@@ -26,7 +26,7 @@ func NewTxManager(pool *pgxpool.Pool) *TxManager {
 	return &TxManager{pool: pool}
 }
 
-// Do открывает транзакцию и кладет её в контекст (Пункт 6.3 ТЗ)
+// Do открывает транзакцию и кладет её в контекст
 func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
 	if _, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
 		return fn(ctx)

@@ -58,10 +58,10 @@ func main() {
 	txManager := repository.NewTxManager(pool)
 	tripRepo := repository.NewTripRepository(txManager)
 	
-	// Создаем наш TripHandler, который теперь на 100% реализует ServerInterface [1]
+	// Создаем наш TripHandler
 	tripHandler := handler.NewTripHandler(tripRepo, txManager)
 
-	// Магия oapi-codegen: связываем сгенерированные пути с нашей структурой [1]
+	// связываем сгенерированные пути с нашей структурой
 	r.Mount("/", api.Handler(tripHandler))
 
 	srv := &http.Server{

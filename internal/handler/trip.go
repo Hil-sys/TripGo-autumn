@@ -12,7 +12,7 @@ import (
 	"github.com/Hil-sys/TripGo-autumn/internal/repository"
 )
 
-// Problem соответствует стандарту RFC 9457 (Пункт 4.1 ТЗ) [1]
+// RFC 9457
 type Problem struct {
 	Type     string `json:"type"`
 	Title    string `json:"title"`
@@ -34,7 +34,7 @@ func NewTripHandler(repo *repository.TripRepository, txManager *repository.TxMan
 	}
 }
 
-// Вспомогательный метод для отправки ошибок по стандарту RFC 9457 [1]
+// Вспомогательный метод
 func (h *TripHandler) respondWithError(w http.ResponseWriter, r *http.Request, httpStatus int, code, title, detail string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(httpStatus)
@@ -163,20 +163,20 @@ func (h *TripHandler) FinishTrip(w http.ResponseWriter, r *http.Request, tripId 
 	_ = json.NewEncoder(w).Encode(trip)
 }
 
-// 4. GET /health - Системная ручка liveness [1]
+// 4. GET /health - Системная ручка
 func (h *TripHandler) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"OK"}`))
 }
 
-// 5. GET /ready - Системная ручка readiness [1]
+// 5. GET /ready - Системная ручка
 func (h *TripHandler) Ready(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	h.respondWithError(w, r, http.StatusNotImplemented, "not_implemented", "Not Implemented", "Use main ready handler")
 }
 
-// Заглушки для ручек геопозиций (они требуются интерфейсом, но не нужны в Лабе 1)
+// Заглушки
 func (h *TripHandler) ListTripPositions(w http.ResponseWriter, r *http.Request, tripId uuid.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
