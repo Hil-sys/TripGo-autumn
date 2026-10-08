@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Определяем кастомные ошибки для ручек
@@ -32,8 +32,8 @@ func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
 	// 1. Вставляем саму поездку в таблицу trips
 	sql, args, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
 		Insert("trips").
-		Columns("id", "user_id", "driver_id", "price", "status").
-		Values(t.ID, t.UserID, t.DriverID, t.Price, t.Status).
+		Columns("id", "user_id", "driver_id", "start_latitude", "start_longitude", "end_latitude", "end_longitude", "price", "status").
+		Values(t.ID, t.UserID, t.DriverID, t.StartPoint.Latitude, t.StartPoint.Longitude, t.EndPoint.Latitude, t.EndPoint.Longitude, t.Price, t.Status).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("build insert trip sql: %w", err)
@@ -72,7 +72,7 @@ func (r *TripRepository) GetTrip(ctx context.Context, id string) (*Trip, error) 
 	db := r.txManager.GetQueryer(ctx)
 
 	sql, args, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
-		Select("id", "user_id", "driver_id", "price", "status", "started_at", "finished_at").
+		Select("id", "user_id", "driver_id", "start_latitude", "start_longitude", "end_latitude", "end_longitude", "price", "status", "started_at", "finished_at").
 		From("trips").
 		Where(sq.Eq{"id": id}).
 		ToSql()
@@ -82,7 +82,13 @@ func (r *TripRepository) GetTrip(ctx context.Context, id string) (*Trip, error) 
 
 	var t Trip
 	row := db.QueryRow(ctx, sql, args...)
-	err = row.Scan(&t.ID, &t.UserID, &t.DriverID, &t.Price, &t.Status, &t.StartedAt, &t.FinishedAt)
+
+	err = row.Scan(
+		&t.ID, &t.UserID, &t.DriverID,
+		&t.StartPoint.Latitude, &t.StartPoint.Longitude,
+		&t.EndPoint.Latitude, &t.EndPoint.Longitude,
+		&t.Price, &t.Status, &t.StartedAt, &t.FinishedAt,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrTripNotFound // Поездки нет -> 404
