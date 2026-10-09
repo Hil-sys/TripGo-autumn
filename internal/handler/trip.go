@@ -5,11 +5,13 @@ import (
 	"errors"
 	"net/http"
 
+	"encoding/json"
+
 	"github.com/google/uuid"
-	"encoding/json" 
 
 	api "github.com/Hil-sys/TripGo-autumn/internal/api"
 	"github.com/Hil-sys/TripGo-autumn/internal/repository"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // RFC 9457
@@ -34,20 +36,20 @@ func NewTripHandler(repo *repository.TripRepository, txManager *repository.TxMan
 	}
 }
 
-// Вспомогательный метод
-func (h *TripHandler) respondWithError(w http.ResponseWriter, r *http.Request, httpStatus int, code, title, detail string) {
+func (h *TripHandler) respondWithError(w http.ResponseWriter, r *http.Request, statusCode int, code, title, detail string) {
 	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(httpStatus)
-	
-	prob := Problem{
-		Type:     "https://tripgo.example" + code,
+	w.WriteHeader(statusCode)
+
+	problem := api.Problem{
+		Type:     "https://tripgo.example/problems/" + code,
 		Title:    title,
-		Status:   httpStatus,
-		Detail:   detail,
-		Instance: r.URL.Path,
+		Status:   int32(statusCode),
+		Detail:   &detail,
+		Instance: &r.URL.Path,
 		Code:     code,
 	}
-	_ = json.NewEncoder(w).Encode(prob)
+
+	_ = json.NewEncoder(w).Encode(problem)
 }
 
 func isInvalidUUID(id string) bool {
@@ -57,36 +59,31 @@ func isInvalidUUID(id string) bool {
 
 // 1. POST /api/v1/trips - Создание поездки
 func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params api.CreateTripParams) {
-	var req struct {
-		UserID     string `json:"user_id"`
-		DriverID   string `json:"driver_id"`
-		StartPoint struct {
-			Latitude  float64 `json:"latitude"`
-			Longitude float64 `json:"longitude"`
-		} `json:"start_point"`
-		EndPoint struct {
-			Latitude  float64 `json:"latitude"`
-			Longitude float64 `json:"longitude"`
-		} `json:"end_point"`
-		Price int64 `json:"price"`
-	}
+	var req api.CreateTripJSONRequestBody
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.respondWithError(w, r, http.StatusBadRequest, "invalid_request", "Bad Request", "Invalid JSON body")
 		return
 	}
 
-	if isInvalidUUID(req.UserID) || isInvalidUUID(req.DriverID) || req.Price < 0 {
+	// 2. Превращаем openapi_types.UUID в обычные строки
+	userIDStr := req.UserId.String()
+	driverIDStr := req.DriverId.String()
+
+	// 3. Валидируем уже строковые значения
+	if isInvalidUUID(userIDStr) || isInvalidUUID(driverIDStr) || req.Price < 0 {
 		h.respondWithError(w, r, http.StatusBadRequest, "invalid_request", "Bad Request", "Validation failed")
 		return
 	}
 
 	tripID := uuid.New().String()
-	
+
+	// 4. Перекладываем данные в твою доменную модель
 	trip := &repository.Trip{
-		ID:         tripID,
-		UserID:     req.UserID,
-		DriverID:   req.DriverID,
+		ID:       tripID,
+		UserID:   userIDStr,
+		DriverID: driverIDStr,
+		// У структуры Coordinates внутри тоже должны быть поля Latitude и Longitude
 		StartPoint: repository.Point{Latitude: req.StartPoint.Latitude, Longitude: req.StartPoint.Longitude},
 		EndPoint:   repository.Point{Latitude: req.EndPoint.Latitude, Longitude: req.EndPoint.Longitude},
 		Price:      req.Price,
@@ -109,7 +106,30 @@ func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Location", "/api/v1/trips/"+tripID)
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(trip)
+
+	apiTripID, _ := uuid.Parse(trip.ID)
+	apiUserID, _ := uuid.Parse(trip.UserID)
+	apiDriverID, _ := uuid.Parse(trip.DriverID)
+
+	response := api.Trip{
+		Id:       openapi_types.UUID(apiTripID),
+		UserId:   openapi_types.UUID(apiUserID),
+		DriverId: openapi_types.UUID(apiDriverID),
+		StartPoint: api.Coordinates{
+			Latitude:  trip.StartPoint.Latitude,
+			Longitude: trip.StartPoint.Longitude,
+		},
+		EndPoint: api.Coordinates{
+			Latitude:  trip.EndPoint.Latitude,
+			Longitude: trip.EndPoint.Longitude,
+		},
+		Price:      trip.Price,
+		Status:     api.TripStatus(trip.Status),
+		StartedAt:  trip.StartedAt,
+		FinishedAt: trip.FinishedAt,
+	}
+
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // 2. GET /api/v1/trips/{tripId} - Получение поездки
