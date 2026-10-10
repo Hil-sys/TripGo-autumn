@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -19,19 +20,26 @@ var (
 
 type TripRepository struct {
 	txManager *TxManager
+	queryTimeout time.Duration
 }
 
 func (r *TripRepository) Ping(ctx context.Context) error {
 	return r.txManager.Ping(ctx)
 }
 
-func NewTripRepository(txManager *TxManager) *TripRepository {
-	return &TripRepository{txManager: txManager}
+func NewTripRepository(txManager *TxManager, queryTimeout time.Duration) *TripRepository {
+	return &TripRepository{
+		txManager:    txManager,
+		queryTimeout: queryTimeout,
+	}
 }
 
 // CreateTrip атомарно создает поездку
 func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
-	db := r.txManager.GetQueryer(ctx)
+	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
+	defer cancel()
+
+	queryer := r.txManager.GetQueryer(ctx)
 
 	// 1. Вставляем саму поездку в таблицу trips
 	sql, args, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
@@ -43,7 +51,7 @@ func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
 		return fmt.Errorf("build insert trip sql: %w", err)
 	}
 
-	_, err = db.Exec(ctx, sql, args...)
+	_, err = queryer.Exec(ctx, sql, args...)
 	if err != nil {
 		// Проверяем код ошибки Postgres 23505 (unique_violation)
 		var pgErr *pgconn.PgError
@@ -63,7 +71,7 @@ func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
 		return fmt.Errorf("build insert history sql: %w", err)
 	}
 
-	_, err = db.Exec(ctx, sqlHist, argsHist...)
+	_, err = queryer.Exec(ctx, sqlHist, argsHist...)
 	if err != nil {
 		return fmt.Errorf("execute insert history: %w", err)
 	}
@@ -73,7 +81,10 @@ func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
 
 // GetTrip возвращает поездку целиком по её ID
 func (r *TripRepository) GetTrip(ctx context.Context, id string) (*Trip, error) {
-	db := r.txManager.GetQueryer(ctx)
+	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
+	defer cancel()
+
+	queryer := r.txManager.GetQueryer(ctx)
 
 	sql, args, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
 		Select("id", "user_id", "driver_id", "start_latitude", "start_longitude", "end_latitude", "end_longitude", "price", "status", "started_at", "finished_at").
@@ -85,7 +96,7 @@ func (r *TripRepository) GetTrip(ctx context.Context, id string) (*Trip, error) 
 	}
 
 	var t Trip
-	row := db.QueryRow(ctx, sql, args...)
+	row := queryer.QueryRow(ctx, sql, args...)
 
 	err = row.Scan(
 		&t.ID, &t.UserID, &t.DriverID,
@@ -105,7 +116,10 @@ func (r *TripRepository) GetTrip(ctx context.Context, id string) (*Trip, error) 
 
 // FinishTrip безопасно переводит поездку в completed с защитой от гонки
 func (r *TripRepository) FinishTrip(ctx context.Context, id string) error {
-	db := r.txManager.GetQueryer(ctx)
+	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
+	defer cancel()
+
+	queryer := r.txManager.GetQueryer(ctx)
 
 	// Блокируем строку поездки для текущей транзакции через FOR UPDATE
 	selectSql, selectArgs, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
@@ -119,7 +133,7 @@ func (r *TripRepository) FinishTrip(ctx context.Context, id string) error {
 	}
 
 	var status string
-	err = db.QueryRow(ctx, selectSql, selectArgs...).Scan(&status)
+	err = queryer.QueryRow(ctx, selectSql, selectArgs...).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTripNotFound
@@ -142,7 +156,7 @@ func (r *TripRepository) FinishTrip(ctx context.Context, id string) error {
 		return fmt.Errorf("build update trip sql: %w", err)
 	}
 
-	_, err = db.Exec(ctx, updateSql, updateArgs...)
+	_, err = queryer.Exec(ctx, updateSql, updateArgs...)
 	if err != nil {
 		return fmt.Errorf("execute update trip: %w", err)
 	}
@@ -157,10 +171,17 @@ func (r *TripRepository) FinishTrip(ctx context.Context, id string) error {
 		return fmt.Errorf("build insert history finish sql: %w", err)
 	}
 
-	_, err = db.Exec(ctx, histSql, histArgs...)
+	_, err = queryer.Exec(ctx, histSql, histArgs...)
 	if err != nil {
 		return fmt.Errorf("execute insert history finish: %w", err)
 	}
 
 	return nil
+}
+
+func (r *TripRepository) Ping(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
+	defer cancel()
+
+	return r.txManager.Ping(ctx)
 }

@@ -2,23 +2,49 @@ package handler
 
 import (
 	"context"
-	"errors"
-	"net/http"
-	"io"
-	"time"
-
 	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
 	api "github.com/Hil-sys/TripGo-autumn/internal/api"
 	"github.com/Hil-sys/TripGo-autumn/internal/repository"
+	"github.com/Hil-sys/TripGo-autumn/internal/usecase"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 type TripHandler struct {
-	repo      *repository.TripRepository
-	txManager *repository.TxManager
+	uc *usecase.TripUsecase
+}
+
+func NewTripHandler(uc *usecase.TripUsecase) *TripHandler {
+	return &TripHandler{
+		uc: uc,
+	}
+}
+
+func (h *TripHandler) respondWithError(w http.ResponseWriter, r *http.Request, statusCode int, code, title, detail string) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(statusCode)
+
+	problem := api.Problem{
+		Type:     "https://tripgo.example/problems/" + code,
+		Title:    title,
+		Status:   int32(statusCode),
+		Detail:   &detail,
+		Instance: &r.URL.Path,
+		Code:     code,
+	}
+
+	_ = json.NewEncoder(w).Encode(problem)
+}
+
+func isInvalidUUID(id string) bool {
+	_, err := uuid.Parse(id)
+	return err != nil
 }
 
 func toAPITrip(trip *repository.Trip) api.Trip {
@@ -45,40 +71,11 @@ func toAPITrip(trip *repository.Trip) api.Trip {
 	}
 }
 
-func NewTripHandler(repo *repository.TripRepository, txManager *repository.TxManager) *TripHandler {
-	return &TripHandler{
-		repo:      repo,
-		txManager: txManager,
-	}
-}
-
-func (h *TripHandler) respondWithError(w http.ResponseWriter, r *http.Request, statusCode int, code, title, detail string) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(statusCode)
-
-	problem := api.Problem{
-		Type:     "https://tripgo.example/problems/" + code,
-		Title:    title,
-		Status:   int32(statusCode),
-		Detail:   &detail,
-		Instance: &r.URL.Path,
-		Code:     code,
-	}
-
-	_ = json.NewEncoder(w).Encode(problem)
-}
-
-func isInvalidUUID(id string) bool {
-	_, err := uuid.Parse(id)
-	return err != nil
-}
-
 // 1. POST /api/v1/trips - Создание поездки
 func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params api.CreateTripParams) {
 	var req api.CreateTripJSONRequestBody
 
 	decoder := json.NewDecoder(r.Body)
-	
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&req); err != nil {
@@ -116,22 +113,15 @@ func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params 
 		return
 	}
 
-	tripID := uuid.New().String()
-
-	trip := &repository.Trip{
-		ID:       tripID,
+	trip, err := h.uc.CreateTrip(r.Context(), usecase.CreateTripParams{
 		UserID:   userIDStr,
 		DriverID: driverIDStr,
-		StartPoint: repository.Point{Latitude: req.StartPoint.Latitude, Longitude: req.StartPoint.Longitude},
-		EndPoint:   repository.Point{Latitude: req.EndPoint.Latitude, Longitude: req.EndPoint.Longitude},
-		Price:      req.Price,
-		Status:     "active",
-	}
-
-	err := h.txManager.Do(r.Context(), func(ctx context.Context) error {
-		return h.repo.CreateTrip(ctx, trip)
+		StartLat: req.StartPoint.Latitude,
+		StartLon: req.StartPoint.Longitude,
+		EndLat:   req.EndPoint.Latitude,
+		EndLon:   req.EndPoint.Longitude,
+		Price:    req.Price,
 	})
-
 	if err != nil {
 		if errors.Is(err, repository.ErrDriverBusy) {
 			h.respondWithError(w, r, http.StatusConflict, "driver_busy", "Driver Busy", "Driver already has an active trip")
@@ -142,9 +132,8 @@ func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Location", "/api/v1/trips/"+tripID)
+	w.Header().Set("Location", "/api/v1/trips/"+trip.ID)
 	w.WriteHeader(http.StatusCreated)
-
 	_ = json.NewEncoder(w).Encode(toAPITrip(trip))
 }
 
@@ -152,7 +141,7 @@ func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params 
 func (h *TripHandler) GetTrip(w http.ResponseWriter, r *http.Request, tripId uuid.UUID) {
 	tripStr := tripId.String()
 
-	trip, err := h.repo.GetTrip(r.Context(), tripStr)
+	trip, err := h.uc.GetTrip(r.Context(), tripStr)
 	if err != nil {
 		if errors.Is(err, repository.ErrTripNotFound) {
 			h.respondWithError(w, r, http.StatusNotFound, "trip_not_found", "Not Found", "Trip not found")
@@ -171,10 +160,7 @@ func (h *TripHandler) GetTrip(w http.ResponseWriter, r *http.Request, tripId uui
 func (h *TripHandler) FinishTrip(w http.ResponseWriter, r *http.Request, tripId uuid.UUID) {
 	tripStr := tripId.String()
 
-	err := h.txManager.Do(r.Context(), func(ctx context.Context) error {
-		return h.repo.FinishTrip(ctx, tripStr)
-	})
-
+	trip, err := h.uc.FinishTrip(r.Context(), tripStr)
 	if err != nil {
 		if errors.Is(err, repository.ErrTripNotFound) {
 			h.respondWithError(w, r, http.StatusNotFound, "trip_not_found", "Not Found", "Trip not found")
@@ -188,12 +174,6 @@ func (h *TripHandler) FinishTrip(w http.ResponseWriter, r *http.Request, tripId 
 		return
 	}
 
-	trip, err := h.repo.GetTrip(r.Context(), tripStr)
-	if err != nil {
-		h.respondWithError(w, r, http.StatusInternalServerError, "internal_error", "Internal Error", "Internal server error")
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(toAPITrip(trip))
@@ -201,23 +181,18 @@ func (h *TripHandler) FinishTrip(w http.ResponseWriter, r *http.Request, tripId 
 
 // 4. GET /health - Системная ручка
 func (h *TripHandler) Health(w http.ResponseWriter, r *http.Request) {
-	resp := api.HealthResponse{
-		Status: api.Ok,
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(api.HealthResponse{
+		Status: api.Ok,
+	})
 }
 
 // 5. GET /ready - Системная ручка
 func (h *TripHandler) Ready(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-	defer cancel()
-
-	if err := h.repo.Ping(ctx); err != nil {
+	if err := h.uc.Ping(r.Context()); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(api.HealthResponse{
 			Status: api.Unavailable,
