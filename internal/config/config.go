@@ -32,35 +32,15 @@ type DatabaseConfig struct {
 }
 
 func Load() (*Config, error) {
-	// 1. Database
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		return nil, fmt.Errorf("required environment variable DATABASE_URL is missing")
 	}
 
-	maxConns, err := getEnvInt32("DATABASE_MAX_CONNS", 10)
-	if err != nil {
-		return nil, err
-	}
-	minConns, err := getEnvInt32("DATABASE_MIN_CONNS", 2)
-	if err != nil {
-		return nil, err
-	}
+	httpAddr := getEnvWithDefault("HTTP_ADDR", ":8080")
+	logLevel := getEnvWithDefault("LOG_LEVEL", "info")
 
-	connectTimeout, err := getEnvDuration("DATABASE_CONNECT_TIMEOUT", 5*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	queryTimeout, err := getEnvDuration("DATABASE_QUERY_TIMEOUT", 3*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	maxConnLifetime, err := getEnvDuration("DATABASE_MAX_CONN_LIFETIME", 30*time.Minute)
-	if err != nil {
-		return nil, err
-	}
-
-	// 2. HTTP Server
+	// 1. Таймауты завершения и сервера
 	shutdownTimeout, err := getEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second)
 	if err != nil {
 		return nil, err
@@ -81,6 +61,48 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	maxConns, err := getEnvInt32("DATABASE_MAX_CONNS", 10)
+	if err != nil {
+		return nil, err
+	}
+
+	minConns, err := getEnvInt32("DATABASE_MIN_CONNS", 2)
+	if err != nil {
+		return nil, err
+	}
+
+	connectTimeout, err := getEnvDuration("DATABASE_CONNECT_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	queryTimeout, err := getEnvDuration("DATABASE_QUERY_TIMEOUT", 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	maxConnLifetime, err := getEnvDuration("DATABASE_MAX_CONN_LIFETIME", 30*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Config{
+		HTTPAddr:                httpAddr,
+		DatabaseURL:             dbURL,
+		LogLevel:                logLevel,
+		ShutdownTimeout:         shutdownTimeout,
+		HTTPReadTimeout:         httpReadTimeout,
+		HTTPReadHeaderTimeout:   httpReadHeaderTimeout,
+		HTTPWriteTimeout:        httpWriteTimeout,
+		HTTPIdleTimeout:         httpIdleTimeout,
+		DatabaseMaxConns:        maxConns,
+		DatabaseMinConns:        minConns,
+		DatabaseConnectTimeout:  connectTimeout,
+		DatabaseQueryTimeout:    queryTimeout,
+		DatabaseMaxConnLifetime: maxConnLifetime,
+	}, nil
+}
 
 	return &Config{
 		LogLevel: getEnvWithDefault("LOG_LEVEL", "info"),
