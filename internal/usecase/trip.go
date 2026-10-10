@@ -19,7 +19,6 @@ func NewTripUsecase(repo *repository.TripRepository, txManager *repository.TxMan
 	}
 }
 
-// CreateTripParams DTO для входных данных создания поездки
 type CreateTripParams struct {
 	UserID    string
 	DriverID  string
@@ -30,7 +29,6 @@ type CreateTripParams struct {
 	Price     int64
 }
 
-// CreateTrip инкапсулирует бизнес-логику генерации сущности и транзакционной записи
 func (u *TripUsecase) CreateTrip(ctx context.Context, p CreateTripParams) (*repository.Trip, error) {
 	tripID := uuid.New().String()
 
@@ -77,7 +75,6 @@ func (u *TripUsecase) FinishTrip(ctx context.Context, tripID string) (*repositor
 	return u.repo.GetTrip(ctx, tripID)
 }
 
-// Ping проверяет доступность базы данных
 func (u *TripUsecase) Ping(ctx context.Context) error {
 	return u.repo.Ping(ctx)
 }

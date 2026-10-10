@@ -9,21 +9,19 @@ import (
 	"github.com/Hil-sys/TripGo-autumn/internal/config"
 )
 
-// NewPool парсит конфигурацию, выставляет все параметры пула и проверяет соединение
-func NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
-	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+// NewPool принимает изолированную конфигурацию базы данных
+func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
+	poolConfig, err := pgxpool.ParseConfig(cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("parse database url: %w", err)
 	}
 
-	// Применяем все параметры пула из конфигурации
-	poolConfig.MaxConns = cfg.DatabaseMaxConns
-	poolConfig.MinConns = cfg.DatabaseMinConns
-	poolConfig.MaxConnLifetime = cfg.DatabaseMaxConnLifetime
-	poolConfig.ConnConfig.ConnectTimeout = cfg.DatabaseConnectTimeout
+	poolConfig.MaxConns = cfg.MaxConns
+	poolConfig.MinConns = cfg.MinConns
+	poolConfig.MaxConnLifetime = cfg.MaxConnLifetime
+	poolConfig.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
 
-	// Стартовый пинг с таймаутом на подключение
-	initCtx, cancel := context.WithTimeout(ctx, cfg.DatabaseConnectTimeout)
+	initCtx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)
 	defer cancel()
 
 	pool, err := pgxpool.NewWithConfig(initCtx, poolConfig)

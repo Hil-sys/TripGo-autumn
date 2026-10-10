@@ -29,7 +29,7 @@ func main() {
 	}
 
 	// Вся инициализация и валидация пула спрятана в модуль repository
-	pool, err := repository.NewPool(context.Background(), cfg)
+	pool, err := repository.NewPool(context.Background(), cfg.Database)
 	if err != nil {
 		log.Fatalf("Ошибка инициализации базы данных: %v", err)
 	}
@@ -42,14 +42,10 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// 1. Слой данных (передаем queryTimeout в репозиторий)
 	txManager := repository.NewTxManager(pool)
-	tripRepo := repository.NewTripRepository(txManager, cfg.DatabaseQueryTimeout)
+	tripRepo := repository.NewTripRepository(txManager, cfg.Database.QueryTimeout)
 
-	// 2. Слой бизнес-логики
 	tripUsecase := usecase.NewTripUsecase(tripRepo, txManager)
-
-	// 3. Слой обработчиков API
 	tripHandler := handler.NewTripHandler(tripUsecase)
 
 	// Регистрация маршрутов OpenAPI с обработкой ошибок RFC 9457
@@ -74,12 +70,12 @@ func main() {
 	})
 
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
+		Addr:              cfg.HTTP.Addr,
 		Handler:           r,
-		ReadTimeout:       5 * time.Second,
-		ReadHeaderTimeout: 2 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       15 * time.Second,
+		ReadTimeout:       cfg.HTTP.ReadTimeout,
+		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,
+		WriteTimeout:      cfg.HTTPWriteTimeout,
+		IdleTimeout:       cfg.HTTP.IdleTimeout,
 	}
 
 	shutdownSignals := make(chan os.Signal, 1)

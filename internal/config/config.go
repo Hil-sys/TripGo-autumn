@@ -8,54 +8,36 @@ import (
 )
 
 type Config struct {
-	HTTPAddr              string
-	DatabaseURL           string
-	LogLevel              string
-	ShutdownTimeout       time.Duration
-	HTTPReadTimeout       time.Duration
-	HTTPReadHeaderTimeout time.Duration
-	HTTPWriteTimeout      time.Duration
-	HTTPIdleTimeout       time.Duration
-	DatabaseMaxConns      int32
-	DatabaseMinConns      int32
-	DatabaseConnectTimeout  time.Duration
-	DatabaseQueryTimeout    time.Duration
-	DatabaseMaxConnLifetime time.Duration
+	LogLevel string
+	HTTP     HTTPConfig
+	Database DatabaseConfig
+}
+
+type HTTPConfig struct {
+	Addr              string
+	ShutdownTimeout   time.Duration
+	ReadTimeout       time.Duration
+	ReadHeaderTimeout time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+}
+
+type DatabaseConfig struct {
+	URL             string
+	MaxConns        int32
+	MinConns        int32
+	ConnectTimeout  time.Duration
+	QueryTimeout    time.Duration
+	MaxConnLifetime time.Duration
 }
 
 func Load() (*Config, error) {
+	// 1. Database
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		return nil, fmt.Errorf("required environment variable DATABASE_URL is missing")
 	}
 
-	httpAddr := getEnvWithDefault("HTTP_ADDR", ":8080")
-	logLevel := getEnvWithDefault("LOG_LEVEL", "info")
-
-	shutdownTimeout, err := getEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second)
-	if err != nil {
-		return nil, err
-	}
-
-	// HTTP-таймауты сервера
-	httpReadTimeout, err := getEnvDuration("HTTP_READ_TIMEOUT", 5*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	httpReadHeaderTimeout, err := getEnvDuration("HTTP_READ_HEADER_TIMEOUT", 2*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	httpWriteTimeout, err := getEnvDuration("HTTP_WRITE_TIMEOUT", 10*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	httpIdleTimeout, err := getEnvDuration("HTTP_IDLE_TIMEOUT", 15*time.Second)
-	if err != nil {
-		return nil, err
-	}
-
-	// Параметры пула БД и таймауты
 	maxConns, err := getEnvInt32("DATABASE_MAX_CONNS", 10)
 	if err != nil {
 		return nil, err
@@ -78,20 +60,46 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	// 2. HTTP Server
+	shutdownTimeout, err := getEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	httpReadTimeout, err := getEnvDuration("HTTP_READ_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	httpReadHeaderTimeout, err := getEnvDuration("HTTP_READ_HEADER_TIMEOUT", 2*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	httpWriteTimeout, err := getEnvDuration("HTTP_WRITE_TIMEOUT", 10*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	httpIdleTimeout, err := getEnvDuration("HTTP_IDLE_TIMEOUT", 15*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		HTTPAddr:                httpAddr,
-		DatabaseURL:             dbURL,
-		LogLevel:                logLevel,
-		ShutdownTimeout:         shutdownTimeout,
-		HTTPReadTimeout:         httpReadTimeout,
-		HTTPReadHeaderTimeout:   httpReadHeaderTimeout,
-		HTTPWriteTimeout:        httpWriteTimeout,
-		HTTPIdleTimeout:         httpIdleTimeout,
-		DatabaseMaxConns:        maxConns,
-		DatabaseMinConns:        minConns,
-		DatabaseConnectTimeout:  connectTimeout,
-		DatabaseQueryTimeout:    queryTimeout,
-		DatabaseMaxConnLifetime: maxConnLifetime,
+		LogLevel: getEnvWithDefault("LOG_LEVEL", "info"),
+		HTTP: HTTPConfig{
+			Addr:              getEnvWithDefault("HTTP_ADDR", ":8080"),
+			ShutdownTimeout:   shutdownTimeout,
+			ReadTimeout:       httpReadTimeout,
+			ReadHeaderTimeout: httpReadHeaderTimeout,
+			WriteTimeout:      httpWriteTimeout,
+			IdleTimeout:       httpIdleTimeout,
+		},
+		Database: DatabaseConfig{
+			URL:             dbURL,
+			MaxConns:        maxConns,
+			MinConns:        minConns,
+			ConnectTimeout:  connectTimeout,
+			QueryTimeout:    queryTimeout,
+			MaxConnLifetime: maxConnLifetime,
+		},
 	}, nil
 }
 

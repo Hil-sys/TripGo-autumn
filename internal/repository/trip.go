@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Определяем кастомные ошибки для ручек
 var (
 	ErrDriverBusy    = errors.New("driver is busy with another active trip")
 	ErrTripNotFound  = errors.New("trip not found")
@@ -53,7 +52,6 @@ func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
 
 	_, err = queryer.Exec(ctx, sql, args...)
 	if err != nil {
-		// Проверяем код ошибки Postgres 23505 (unique_violation)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return ErrDriverBusy
@@ -61,7 +59,6 @@ func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
 		return fmt.Errorf("execute insert trip: %w", err)
 	}
 
-	// 2. Вставляем стартовый статус в журнал истории
 	sqlHist, argsHist, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
 		Insert("trip_status_history").
 		Columns("trip_id", "status").
@@ -106,7 +103,7 @@ func (r *TripRepository) GetTrip(ctx context.Context, id string) (*Trip, error) 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrTripNotFound // Поездки нет -> 404
+			return nil, ErrTripNotFound // 404
 		}
 		return nil, fmt.Errorf("scan trip row: %w", err)
 	}
@@ -114,7 +111,6 @@ func (r *TripRepository) GetTrip(ctx context.Context, id string) (*Trip, error) 
 	return &t, nil
 }
 
-// FinishTrip безопасно переводит поездку в completed с защитой от гонки
 func (r *TripRepository) FinishTrip(ctx context.Context, id string) error {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
 	defer cancel()
@@ -145,7 +141,6 @@ func (r *TripRepository) FinishTrip(ctx context.Context, id string) error {
 		return ErrTripCompleted
 	}
 
-	// Обновляем статус
 	updateSql, updateArgs, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
 		Update("trips").
 		Set("status", "completed").
@@ -161,7 +156,7 @@ func (r *TripRepository) FinishTrip(ctx context.Context, id string) error {
 		return fmt.Errorf("execute update trip: %w", err)
 	}
 
-	// Записываем изменение в историю статусов
+	// Записываем изменение
 	histSql, histArgs, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
 		Insert("trip_status_history").
 		Columns("trip_id", "status").
