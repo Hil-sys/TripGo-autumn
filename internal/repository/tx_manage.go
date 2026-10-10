@@ -66,3 +66,7 @@ func (tm *TxManager) GetQueryer(ctx context.Context) DBQueryer {
 	}
 	return tm.pool
 }
+
+func (tm *TxManager) Ping(ctx context.Context) error {
+	return tm.pool.Ping(ctx)
+}

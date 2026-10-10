@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"io"
+	"time"
 
 	"encoding/json"
 
@@ -206,13 +207,28 @@ func (h *TripHandler) Health(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(toAPITrip(trip))
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // 5. GET /ready - Системная ручка
 func (h *TripHandler) Ready(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	h.respondWithError(w, r, http.StatusNotImplemented, "not_implemented", "Not Implemented", "Use main ready handler")
+
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+
+	if err := h.repo.Ping(ctx); err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(api.HealthResponse{
+			Status: api.Unavailable,
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(api.HealthResponse{
+		Status: api.Ok,
+	})
 }
 
 // Заглушки

@@ -21,6 +21,10 @@ type TripRepository struct {
 	txManager *TxManager
 }
 
+func (r *TripRepository) Ping(ctx context.Context) error {
+	return r.txManager.Ping(ctx)
+}
+
 func NewTripRepository(txManager *TxManager) *TripRepository {
 	return &TripRepository{txManager: txManager}
 }
