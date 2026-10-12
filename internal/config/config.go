@@ -88,26 +88,9 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		HTTPAddr:                httpAddr,
-		DatabaseURL:             dbURL,
-		LogLevel:                logLevel,
-		ShutdownTimeout:         shutdownTimeout,
-		HTTPReadTimeout:         httpReadTimeout,
-		HTTPReadHeaderTimeout:   httpReadHeaderTimeout,
-		HTTPWriteTimeout:        httpWriteTimeout,
-		HTTPIdleTimeout:         httpIdleTimeout,
-		DatabaseMaxConns:        maxConns,
-		DatabaseMinConns:        minConns,
-		DatabaseConnectTimeout:  connectTimeout,
-		DatabaseQueryTimeout:    queryTimeout,
-		DatabaseMaxConnLifetime: maxConnLifetime,
-	}, nil
-}
-
-	return &Config{
-		LogLevel: getEnvWithDefault("LOG_LEVEL", "info"),
+		LogLevel: logLevel,
 		HTTP: HTTPConfig{
-			Addr:              getEnvWithDefault("HTTP_ADDR", ":8080"),
+			Addr:              httpAddr,
 			ShutdownTimeout:   shutdownTimeout,
 			ReadTimeout:       httpReadTimeout,
 			ReadHeaderTimeout: httpReadHeaderTimeout,

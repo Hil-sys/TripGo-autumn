@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // DBQueryer объединяет методы выполнения запросов для пула и транзакции
@@ -28,26 +30,38 @@ func NewTxManager(pool *pgxpool.Pool) *TxManager {
 
 // Do открывает транзакцию и кладет её в контекст
 func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	// Если транзакция уже открыта выше по стеку — переиспользуем её
 	if _, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
 		return fn(ctx)
 	}
 
-	tx, err := tm.pool.Begin(ctx)
+	// 1. Явно задаем уровень изоляции Read Committed через BeginTx
+	tx, err := tm.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.ReadCommitted,
+	})
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 
+	// Хелпер для отката с отдельным независимым контекстом
+	rollbackTx := func() error {
+		rbCtx, rbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer rbCancel()
+		return tx.Rollback(rbCtx)
+	}
+
 	defer func() {
 		if p := recover(); p != nil {
-			_ = tx.Rollback(context.Background())
+			_ = rollbackTx()
 			panic(p)
 		}
 	}()
 
 	ctxWithTx := context.WithValue(ctx, txKey{}, tx)
 	if err := fn(ctxWithTx); err != nil {
-		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			return fmt.Errorf("fn error: %v, rollback error: %w", err, rollbackErr)
+		// 2. Откатываем транзакцию через отдельный контекст, который не зависит от отмены ctx
+		if rbErr := rollbackTx(); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
+			return fmt.Errorf("fn error: %w, rollback error: %v", err, rbErr)
 		}
 		return err
 	}

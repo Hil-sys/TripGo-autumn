@@ -1,12 +1,11 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
-	"time"
+	"log"
 
 	"github.com/google/uuid"
 
@@ -40,11 +39,6 @@ func (h *TripHandler) respondWithError(w http.ResponseWriter, r *http.Request, s
 	}
 
 	_ = json.NewEncoder(w).Encode(problem)
-}
-
-func isInvalidUUID(id string) bool {
-	_, err := uuid.Parse(id)
-	return err != nil
 }
 
 func toAPITrip(trip *repository.Trip) api.Trip {
@@ -88,11 +82,9 @@ func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params 
 		return
 	}
 
-	userIDStr := req.UserId.String()
-	driverIDStr := req.DriverId.String()
-
-	if isInvalidUUID(userIDStr) || isInvalidUUID(driverIDStr) {
-		h.respondWithError(w, r, http.StatusBadRequest, "invalid_request", "Bad Request", "Invalid user_id or driver_id")
+	// Проверяем, что user_id и driver_id заданы и не являются пустыми (00000000-0000-0000-0000-000000000000)
+	if req.UserId == openapi_types.UUID(uuid.Nil) || req.DriverId == openapi_types.UUID(uuid.Nil) {
+		h.respondWithError(w, r, http.StatusBadRequest, "invalid_request", "Bad Request", "user_id and driver_id must not be empty UUIDs")
 		return
 	}
 
@@ -114,8 +106,8 @@ func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params 
 	}
 
 	trip, err := h.uc.CreateTrip(r.Context(), usecase.CreateTripParams{
-		UserID:   userIDStr,
-		DriverID: driverIDStr,
+		UserID:   req.UserId.String(),
+		DriverID: req.DriverId.String(),
 		StartLat: req.StartPoint.Latitude,
 		StartLon: req.StartPoint.Longitude,
 		EndLat:   req.EndPoint.Latitude,
@@ -127,6 +119,7 @@ func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params 
 			h.respondWithError(w, r, http.StatusConflict, "driver_busy", "Driver Busy", "Driver already has an active trip")
 			return
 		}
+		log.Printf("ERROR CreateTrip: %v", err)
 		h.respondWithError(w, r, http.StatusInternalServerError, "internal_error", "Internal Error", "Internal server error")
 		return
 	}
@@ -139,9 +132,7 @@ func (h *TripHandler) CreateTrip(w http.ResponseWriter, r *http.Request, params 
 
 // 2. GET /api/v1/trips/{tripId} - Получение поездки
 func (h *TripHandler) GetTrip(w http.ResponseWriter, r *http.Request, tripId uuid.UUID) {
-	tripStr := tripId.String()
-
-	trip, err := h.uc.GetTrip(r.Context(), tripStr)
+	trip, err := h.uc.GetTrip(r.Context(), tripId.String())
 	if err != nil {
 		if errors.Is(err, repository.ErrTripNotFound) {
 			h.respondWithError(w, r, http.StatusNotFound, "trip_not_found", "Not Found", "Trip not found")
@@ -158,9 +149,7 @@ func (h *TripHandler) GetTrip(w http.ResponseWriter, r *http.Request, tripId uui
 
 // 3. POST /api/v1/trips/{tripId}/finish - Завершение поездки
 func (h *TripHandler) FinishTrip(w http.ResponseWriter, r *http.Request, tripId uuid.UUID) {
-	tripStr := tripId.String()
-
-	trip, err := h.uc.FinishTrip(r.Context(), tripStr)
+	trip, err := h.uc.FinishTrip(r.Context(), tripId.String())
 	if err != nil {
 		if errors.Is(err, repository.ErrTripNotFound) {
 			h.respondWithError(w, r, http.StatusNotFound, "trip_not_found", "Not Found", "Trip not found")
@@ -206,7 +195,7 @@ func (h *TripHandler) Ready(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Заглушки
+// Заглушки для контракта
 func (h *TripHandler) ListTripPositions(w http.ResponseWriter, r *http.Request, tripId uuid.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }

@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/Hil-sys/TripGo-autumn/internal/config"
 	"github.com/Hil-sys/TripGo-autumn/internal/handler"
@@ -74,7 +73,7 @@ func main() {
 		Handler:           r,
 		ReadTimeout:       cfg.HTTP.ReadTimeout,
 		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,
-		WriteTimeout:      cfg.HTTPWriteTimeout,
+		WriteTimeout:	   cfg.HTTP.WriteTimeout,
 		IdleTimeout:       cfg.HTTP.IdleTimeout,
 	}
 
@@ -82,7 +81,7 @@ func main() {
 	signal.Notify(shutdownSignals, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		log.Printf("Запуск HTTP-сервера на %s...", cfg.HTTPAddr)
+		log.Printf("Запуск HTTP-сервера на %s...", cfg.HTTP.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Ошибка запуска сервера: %v", err)
 		}
@@ -91,7 +90,7 @@ func main() {
 	sig := <-shutdownSignals
 	log.Printf("Получен сигнал %v. Начинаем Graceful Shutdown...", sig)
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.HTTP.ShutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
