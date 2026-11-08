@@ -30,12 +30,10 @@ func NewTxManager(pool *pgxpool.Pool) *TxManager {
 
 // Do открывает транзакцию и кладет её в контекст
 func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
-	// Если транзакция уже открыта выше по стеку — переиспользуем её
 	if _, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
 		return fn(ctx)
 	}
 
-	// 1. Явно задаем уровень изоляции Read Committed через BeginTx
 	tx, err := tm.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.ReadCommitted,
 	})
@@ -43,7 +41,6 @@ func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error)
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 
-	// Хелпер для отката с отдельным независимым контекстом
 	rollbackTx := func() error {
 		rbCtx, rbCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer rbCancel()
@@ -59,7 +56,6 @@ func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error)
 
 	ctxWithTx := context.WithValue(ctx, txKey{}, tx)
 	if err := fn(ctxWithTx); err != nil {
-		// 2. Откатываем транзакцию через отдельный контекст, который не зависит от отмены ctx
 		if rbErr := rollbackTx(); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
 			return fmt.Errorf("fn error: %w, rollback error: %v", err, rbErr)
 		}
@@ -73,7 +69,6 @@ func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error)
 	return nil
 }
 
-// GetQueryer достает из контекста транзакцию или возвращает пул
 func (tm *TxManager) GetQueryer(ctx context.Context) DBQueryer {
 	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
 		return tx

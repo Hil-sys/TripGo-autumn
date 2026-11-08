@@ -29,14 +29,12 @@ func NewTripRepository(txManager *TxManager, queryTimeout time.Duration) *TripRe
 	}
 }
 
-// CreateTrip атомарно создает поездку и возвращает фактический started_at из БД
 func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
 	defer cancel()
 
 	queryer := r.txManager.GetQueryer(ctx)
 
-	// 1. Вставляем поездку и через RETURNING started_at вычитываем сгенерированное базой время
 	sql, args, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
 		Insert("trips").
 		Columns("id", "user_id", "driver_id", "start_latitude", "start_longitude", "end_latitude", "end_longitude", "price", "status", "started_at").
@@ -56,7 +54,6 @@ func (r *TripRepository) CreateTrip(ctx context.Context, t *Trip) error {
 		return fmt.Errorf("execute insert trip: %w", err)
 	}
 
-	// 2. Логируем статус в trip_status_history по контракту (from_status = NULL, to_status = active)
 	sqlHist, argsHist, err := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
 		Insert("trip_status_history").
 		Columns("trip_id", "from_status", "to_status").
@@ -109,7 +106,6 @@ func (r *TripRepository) GetTrip(ctx context.Context, id string) (*Trip, error) 
 	return &t, nil
 }
 
-// FinishTrip завершает поездку с защитой от гонки через SELECT ... FOR UPDATE
 func (r *TripRepository) FinishTrip(ctx context.Context, id string) error {
 	ctx, cancel := context.WithTimeout(ctx, r.queryTimeout)
 	defer cancel()
