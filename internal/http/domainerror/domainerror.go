@@ -8,17 +8,19 @@ import (
 	"github.com/Hil-sys/TripGo-autumn/internal/generated"
 )
 
+// Problem маппит ошибки приложения в HTTP-статус и Problem Details (RFC 9457).
 func Problem(err error, instance string) (int, api.Problem) {
 	var valErr domain.ValidationError
 	if errors.As(err, &valErr) {
 		status := http.StatusBadRequest
 		code := "invalid_request"
+		detail := valErr.Error()
 		return status, api.Problem{
 			Type:     "https://tripgo.example/problems/invalid-request",
 			Title:    "Invalid Request",
-			Status:   status,
-			Detail:   valErr.Error(),
-			Code:     &code,
+			Status:   int32(status),
+			Detail:   &detail,
+			Code:     code,
 			Instance: &instance,
 		}
 	}
@@ -27,48 +29,52 @@ func Problem(err error, instance string) (int, api.Problem) {
 	case errors.Is(err, domain.ErrTripNotFound):
 		status := http.StatusNotFound
 		code := "trip_not_found"
+		detail := err.Error()
 		return status, api.Problem{
 			Type:     "https://tripgo.example/problems/trip-not-found",
 			Title:    "Trip Not Found",
-			Status:   status,
-			Detail:   err.Error(),
-			Code:     &code,
+			Status:   int32(status),
+			Detail:   &detail,
+			Code:     code,
 			Instance: &instance,
 		}
 
 	case errors.Is(err, domain.ErrDriverBusy):
 		status := http.StatusConflict
 		code := "driver_busy"
+		detail := err.Error()
 		return status, api.Problem{
 			Type:     "https://tripgo.example/problems/driver-busy",
 			Title:    "Driver Busy",
-			Status:   status,
-			Detail:   err.Error(),
-			Code:     &code,
+			Status:   int32(status),
+			Detail:   &detail,
+			Code:     code,
 			Instance: &instance,
 		}
 
 	case errors.Is(err, domain.ErrTripCompleted):
 		status := http.StatusConflict
 		code := "trip_completed"
+		detail := err.Error()
 		return status, api.Problem{
 			Type:     "https://tripgo.example/problems/trip-completed",
 			Title:    "Trip Already Completed",
-			Status:   status,
-			Detail:   err.Error(),
-			Code:     &code,
+			Status:   int32(status),
+			Detail:   &detail,
+			Code:     code,
 			Instance: &instance,
 		}
 
 	default:
 		status := http.StatusInternalServerError
 		code := "internal_error"
+		detail := "An unexpected error occurred"
 		return status, api.Problem{
 			Type:     "https://tripgo.example/problems/internal-error",
 			Title:    "Internal Server Error",
-			Status:   status,
-			Detail:   "An unexpected error occurred",
-			Code:     &code,
+			Status:   int32(status),
+			Detail:   &detail,
+			Code:     code,
 			Instance: &instance,
 		}
 	}

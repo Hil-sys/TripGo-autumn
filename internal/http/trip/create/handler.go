@@ -28,7 +28,8 @@ func NewHandler(uc usecaseInterface) *Handler {
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req api.CreateTripJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeProblem(w, r, domainerror.Problem(fmt.Errorf("invalid json body: %w", err), r.URL.Path))
+		status, prob := domainerror.Problem(fmt.Errorf("invalid json body: %w", err), r.URL.Path)
+		writeProblem(w, status, prob)
 		return
 	}
 
@@ -46,7 +47,8 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		Price: req.Price,
 	})
 	if err != nil {
-		writeProblem(w, r, domainerror.Problem(err, r.URL.Path))
+		status, prob := domainerror.Problem(err, r.URL.Path)
+		writeProblem(w, status, prob)
 		return
 	}
 
@@ -56,7 +58,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(trip.ToAPI(created))
 }
 
-func writeProblem(w http.ResponseWriter, r *http.Request, status int, prob api.Problem) {
+func writeProblem(w http.ResponseWriter, status int, prob api.Problem) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(prob)

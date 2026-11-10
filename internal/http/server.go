@@ -6,10 +6,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hil-sys/TripGo-autumn/internal/generated"
+	systemhandler "github.com/Hil-sys/TripGo-autumn/internal/http/system"
 	createhandler "github.com/Hil-sys/TripGo-autumn/internal/http/trip/create"
 	finishhandler "github.com/Hil-sys/TripGo-autumn/internal/http/trip/finish"
 	gethandler "github.com/Hil-sys/TripGo-autumn/internal/http/trip/get"
-	systemhandler "github.com/Hil-sys/TripGo-autumn/internal/http/system"
 )
 
 var _ api.ServerInterface = (*Server)(nil)
@@ -35,7 +35,7 @@ func NewServer(
 	}
 }
 
-func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request) {
+func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.CreateTripParams) {
 	s.createHandler.Handle(w, r)
 }
 
@@ -53,4 +53,12 @@ func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) Ready(w http.ResponseWriter, r *http.Request) {
 	s.systemHandler.Ready(w, r)
+}
+
+func (s *Server) CreateTripPosition(w http.ResponseWriter, r *http.Request, _ openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+func (s *Server) ListTripPositions(w http.ResponseWriter, r *http.Request, _ openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
 }

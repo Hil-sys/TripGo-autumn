@@ -87,17 +87,18 @@ func main() {
 
 	api.HandlerFromMux(serverAdapter, r)
 
+	// 5. Роутер и HTTP-сервер
 	httpServer := &http.Server{
-		Addr:              cfg.HTTPAddr,
+		Addr:              cfg.HTTP.Addr,
 		Handler:           r,
-		ReadTimeout:       5 * time.Second,
-		ReadHeaderTimeout: 2 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       120 * time.Second,
+		ReadTimeout:       cfg.HTTP.ReadTimeout,
+		ReadHeaderTimeout: cfg.HTTP.ReadHeaderTimeout,
+		WriteTimeout:      cfg.HTTP.WriteTimeout,
+		IdleTimeout:       cfg.HTTP.IdleTimeout,
 	}
 
 	go func() {
-		logger.InfoContext(ctx, "starting http server", slog.String("addr", cfg.HTTPAddr))
+		logger.InfoContext(ctx, "starting http server", slog.String("addr", cfg.HTTP.Addr))
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.ErrorContext(ctx, "http server crashed", slog.Any("error", err))
 			os.Exit(1)
@@ -107,9 +108,10 @@ func main() {
 	<-ctx.Done()
 	logger.Info("shutting down service gracefully")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	// 6. Graceful shutdown по таймауту
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.HTTP.ShutdownTimeout)
 	defer shutdownCancel()
-
+	
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("server forced to shutdown", slog.Any("error", err))
 	}

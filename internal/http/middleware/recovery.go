@@ -33,12 +33,13 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 
 					code := "internal_error"
 					instance := r.URL.Path
+					detail := "An unexpected error occurred"
 					prob := api.Problem{
 						Type:     "https://tripgo.example/problems/internal-error",
 						Title:    "Internal Server Error",
-						Status:   http.StatusInternalServerError,
-						Detail:   "An unexpected error occurred",
-						Code:     &code,
+						Status:   int32(http.StatusInternalServerError),
+						Detail:   &detail,
+						Code:     code,
 						Instance: &instance,
 					}
 					_ = json.NewEncoder(w).Encode(prob)

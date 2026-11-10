@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/Hil-sys/TripGo-autumn/internal/generated"
 	"github.com/Hil-sys/TripGo-autumn/internal/http/domainerror"
 	"github.com/Hil-sys/TripGo-autumn/internal/http/trip"
 	"github.com/Hil-sys/TripGo-autumn/internal/model"
