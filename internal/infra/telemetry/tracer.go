@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
-	"google.golang.org/grpc"
 )
 
 func InitTracer(ctx context.Context, endpoint string, serviceName string) (func(context.Context) error, error) {
@@ -22,7 +21,6 @@ func InitTracer(ctx context.Context, endpoint string, serviceName string) (func(
 		ctx,
 		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(),
-		otlptracegrpc.WithDialOption(grpc.WithBlock()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create otlp trace exporter: %w", err)
