@@ -1,26 +1,49 @@
-ifneq ($(wildcard .env),)
+ifneq (,$(wildcard .env))
     include .env
     export
 endif
 
-.PHONY: generate migrate-up migrate-down run
+DATABASE_URL ?= postgres://tripgo:tripgo@localhost:5432/tripgo?sslmode=disable
+MIGRATIONS_DIR ?= migrations
 
-# 1. Генерация кода по контракту OpenAPI
+.PHONY: all build run migrate migrate-down generate test lint clean
+
+all: lint test build
+
+# Сборка бинарника сервиса
+build:
+	go build -v -o bin/trip-service ./cmd/trip-service
+
+# Локальный запуск сервиса
+run:
+	go run ./cmd/trip-service
+
+# Применение миграций базы данных
+migrate:
+	goose -dir $(MIGRATIONS_DIR) postgres "$(DATABASE_URL)" up
+
+# Откат последней миграции
+migrate-down:
+	goose -dir $(MIGRATIONS_DIR) postgres "$(DATABASE_URL)" down
+
+# Вся кодогенерация проекта (OpenAPI и mockgen)
 generate:
 	go tool oapi-codegen \
-	  -generate types,chi-server \
-	  -package api \
-	  -o internal/generated/api.gen.go \
-	  contracts/openapi/trip-service.openapi.yaml
+		-generate types,chi-server \
+		-package api \
+		-o internal/generated/api.gen.go \
+		contracts/openapi/trip-service.openapi.yaml
+	go generate ./...
 
-# 2. Накатить миграции (используем DATABASE_URL из .env)
-migrate:
-	go tool goose -dir migrations postgres "$(DATABASE_URL)" up
+# Запуск unit-тестов с детектором гонок и повторным прогоном
+test:
+	go test -v -race -count=2 ./...
 
-# 3. Откатить миграции на один шаг назад
-migrate-down:
-	go tool goose -dir migrations postgres "$(DATABASE_URL)" down
+# Статический анализ кода через golangci-lint
+lint:
+	golangci-lint run ./...
 
-# 4. Запуск сервиса локально
-run:
-	go run cmd/trip-service/main.go
+# Очистка артефактов сборки
+clean:
+	rm -rf bin/
+	
