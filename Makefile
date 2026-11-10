@@ -10,7 +10,7 @@ generate:
 	go tool oapi-codegen \
 	  -generate types,chi-server \
 	  -package api \
-	  -o internal/api/api.gen.go \
+	  -o internal/generated/api.gen.go \
 	  contracts/openapi/trip-service.openapi.yaml
 
 # 2. Накатить миграции (используем DATABASE_URL из .env)
