@@ -22,14 +22,22 @@ func (h *ContextHandler) Handle(ctx context.Context, record slog.Record) error {
 	return h.Handler.Handle(ctx, record)
 }
 
+func (h *ContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &ContextHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+func (h *ContextHandler) WithGroup(name string) slog.Handler {
+	return &ContextHandler{Handler: h.Handler.WithGroup(name)}
+}
+
 func NewLogger(levelStr, serviceName string) *slog.Logger {
 	var level slog.Level
 	switch levelStr {
-	case "DEBUG":
+	case "DEBUG", "debug":
 		level = slog.LevelDebug
-	case "WARN":
+	case "WARN", "warn":
 		level = slog.LevelWarn
-	case "ERROR":
+	case "ERROR", "error":
 		level = slog.LevelError
 	default:
 		level = slog.LevelInfo
