@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/Hil-sys/TripGo-autumn/internal/config"
 )
 
-// NewPool принимает изолированную конфигурацию базы данных
 func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	poolConfig, err := pgxpool.ParseConfig(cfg.URL)
 	if err != nil {

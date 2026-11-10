@@ -1,4 +1,4 @@
-package repository
+package transaction
 
 import (
 	"context"
@@ -11,8 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// DBQueryer объединяет методы выполнения запросов для пула и транзакции
-type DBQueryer interface {
+type Queryer interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
@@ -28,7 +27,7 @@ func NewTxManager(pool *pgxpool.Pool) *TxManager {
 	return &TxManager{pool: pool}
 }
 
-// Do открывает транзакцию и кладет её в контекст
+// Do выполняет переданную функцию внутри транзакции Read Committed.
 func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
 	if _, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
 		return fn(ctx)
@@ -69,7 +68,8 @@ func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error)
 	return nil
 }
 
-func (tm *TxManager) GetQueryer(ctx context.Context) DBQueryer {
+// GetQueryer извлекает активную транзакцию из контекста или возвращает пул.
+func (tm *TxManager) GetQueryer(ctx context.Context) Queryer {
 	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
 		return tx
 	}

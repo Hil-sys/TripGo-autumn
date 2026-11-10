@@ -8,9 +8,10 @@ import (
 )
 
 type Config struct {
-	LogLevel string
-	HTTP     HTTPConfig
-	Database DatabaseConfig
+	LogLevel     string
+	OtelEndpoint string
+	HTTP         HTTPConfig
+	Database     DatabaseConfig
 }
 
 type HTTPConfig struct {
@@ -37,10 +38,28 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("required environment variable DATABASE_URL is missing")
 	}
 
-	httpAddr := getEnvWithDefault("HTTP_ADDR", ":8080")
-	logLevel := getEnvWithDefault("LOG_LEVEL", "info")
+	maxConns, err := getEnvInt32("DATABASE_MAX_CONNS", 10)
+	if err != nil {
+		return nil, err
+	}
+	minConns, err := getEnvInt32("DATABASE_MIN_CONNS", 2)
+	if err != nil {
+		return nil, err
+	}
 
-	// 1. Таймауты завершения и сервера
+	connectTimeout, err := getEnvDuration("DATABASE_CONNECT_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	queryTimeout, err := getEnvDuration("DATABASE_QUERY_TIMEOUT", 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	maxConnLifetime, err := getEnvDuration("DATABASE_MAX_CONN_LIFETIME", 30*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
 	shutdownTimeout, err := getEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second)
 	if err != nil {
 		return nil, err
@@ -62,35 +81,16 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	maxConns, err := getEnvInt32("DATABASE_MAX_CONNS", 10)
-	if err != nil {
-		return nil, err
-	}
-
-	minConns, err := getEnvInt32("DATABASE_MIN_CONNS", 2)
-	if err != nil {
-		return nil, err
-	}
-
-	connectTimeout, err := getEnvDuration("DATABASE_CONNECT_TIMEOUT", 5*time.Second)
-	if err != nil {
-		return nil, err
-	}
-
-	queryTimeout, err := getEnvDuration("DATABASE_QUERY_TIMEOUT", 3*time.Second)
-	if err != nil {
-		return nil, err
-	}
-
-	maxConnLifetime, err := getEnvDuration("DATABASE_MAX_CONN_LIFETIME", 30*time.Minute)
-	if err != nil {
-		return nil, err
+	otelEndpoint := getEnvWithDefault("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	if otelEndpoint == "" {
+		otelEndpoint = os.Getenv("OTEL_ENDPOINT")
 	}
 
 	return &Config{
-		LogLevel: logLevel,
+		LogLevel:     getEnvWithDefault("LOG_LEVEL", "info"),
+		OtelEndpoint: otelEndpoint,
 		HTTP: HTTPConfig{
-			Addr:              httpAddr,
+			Addr:              getEnvWithDefault("HTTP_ADDR", ":8080"),
 			ShutdownTimeout:   shutdownTimeout,
 			ReadTimeout:       httpReadTimeout,
 			ReadHeaderTimeout: httpReadHeaderTimeout,
