@@ -45,10 +45,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-
+	// 1. Инициализация OpenTelemetry Tracing
 	traceShutdown, err := telemetry.InitTracer(ctx, cfg.OtelEndpoint, serviceName)
 	if err != nil {
-		logger.WarnContext(ctx, "failed to initialize tracer, continuing without tracing", "error", err)
+		logger.WarnContext(ctx, "failed to initialize tracer", slog.Any("error", err))
 	}
 	defer func() {
 		shutdownCtx, sCancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -58,6 +58,20 @@ func main() {
 		}
 	}()
 
+	// 2. Инициализация OpenTelemetry Metrics
+	metrics, meterShutdown, err := telemetry.InitMeter(ctx, cfg.OtelEndpoint, serviceName)
+	if err != nil {
+		logger.WarnContext(ctx, "failed to initialize meter", slog.Any("error", err))
+	}
+	defer func() {
+		shutdownCtx, sCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer sCancel()
+		if meterShutdown != nil {
+			_ = meterShutdown(shutdownCtx)
+		}
+	}()
+
+	// 3. Инфраструктура базы данных и транзакций
 	pool, err := postgres.NewPool(ctx, cfg.Database)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to connect to database", "error", err)
@@ -67,27 +81,31 @@ func main() {
 
 	txManager := transaction.NewTxManager(pool)
 
-	repo := triprepo.NewRepository(txManager, cfg.Database.QueryTimeout)
+	// 4. Репозитории и сценарии бизнес-логики (Use Cases)
+	repo := triprepo.NewRepository(txManager, cfg.Database.QueryTimeout, metrics)
 
 	createUseCase := createuc.New(repo, txManager)
 	getUseCase := getuc.New(repo)
 	finishUseCase := finishuc.New(repo, txManager)
 
+	// 5. HTTP-обработчики и адаптер ServerInterface
 	serverAdapter := httpserver.NewServer(
-		createhandler.NewHandler(createUseCase),
+		createhandler.NewHandler(createUseCase, metrics),
 		gethandler.NewHandler(getUseCase),
-		finishhandler.NewHandler(finishUseCase),
+		finishhandler.NewHandler(finishUseCase, metrics),
 		systemhandler.NewHandler(repo),
 	)
 
+	// 6. Роутер и Middleware цепочка
 	r := chi.NewRouter()
 	r.Use(otelhttp.NewMiddleware(serviceName))
+	r.Use(middleware.Metrics(metrics))
 	r.Use(middleware.Logger(logger))
 	r.Use(middleware.Recovery(logger))
 
 	api.HandlerFromMux(serverAdapter, r)
 
-	// 5. Роутер и HTTP-сервер
+	// 7. Конфигурация HTTP-сервера с таймаутами
 	httpServer := &http.Server{
 		Addr:              cfg.HTTP.Addr,
 		Handler:           r,
@@ -108,10 +126,10 @@ func main() {
 	<-ctx.Done()
 	logger.Info("shutting down service gracefully")
 
-	// 6. Graceful shutdown по таймауту
+	// 8. Graceful shutdown по SHUTDOWN_TIMEOUT
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.HTTP.ShutdownTimeout)
 	defer shutdownCancel()
-	
+
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("server forced to shutdown", slog.Any("error", err))
 	}

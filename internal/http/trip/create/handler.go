@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
+	domain "github.com/Hil-sys/TripGo-autumn/internal/domain/trip"
 	"github.com/Hil-sys/TripGo-autumn/internal/generated"
 	"github.com/Hil-sys/TripGo-autumn/internal/http/domainerror"
 	"github.com/Hil-sys/TripGo-autumn/internal/http/trip"
+	"github.com/Hil-sys/TripGo-autumn/internal/infra/telemetry"
 	"github.com/Hil-sys/TripGo-autumn/internal/model"
 	usecase "github.com/Hil-sys/TripGo-autumn/internal/usecase/trip/create"
 )
@@ -18,17 +21,26 @@ type usecaseInterface interface {
 }
 
 type Handler struct {
-	uc usecaseInterface
+	uc      usecaseInterface
+	metrics *telemetry.Metrics
+	logger  *slog.Logger
 }
 
-func NewHandler(uc usecaseInterface) *Handler {
-	return &Handler{uc: uc}
+func NewHandler(uc usecaseInterface, metrics *telemetry.Metrics) *Handler {
+	return &Handler{
+		uc:      uc,
+		metrics: metrics,
+		logger:  slog.Default(),
+	}
 }
 
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var req api.CreateTripJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		status, prob := domainerror.Problem(fmt.Errorf("invalid json body: %w", err), r.URL.Path)
+		status, prob := domainerror.Problem(
+			domain.ValidationError{Field: "body", Reason: fmt.Sprintf("invalid json payload: %v", err)},
+			r.URL.Path,
+		)
 		writeProblem(w, status, prob)
 		return
 	}
@@ -48,8 +60,16 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		status, prob := domainerror.Problem(err, r.URL.Path)
+		if status >= http.StatusInternalServerError {
+			h.logger.ErrorContext(r.Context(), "failed to create trip", slog.Any("error", err))
+		}
 		writeProblem(w, status, prob)
 		return
+	}
+
+	// Фиксируем метрику tripgo.trips.created
+	if h.metrics != nil && h.metrics.TripsCreated != nil {
+		h.metrics.TripsCreated.Add(r.Context(), 1)
 	}
 
 	w.Header().Set("Location", fmt.Sprintf("/api/v1/trips/%s", created.ID))
