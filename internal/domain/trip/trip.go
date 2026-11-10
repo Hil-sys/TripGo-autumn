@@ -19,9 +19,9 @@ type Point struct {
 }
 
 type Trip struct {
-	ID             uuid.UUID
-	UserID         uuid.UUID
-	DriverID       uuid.UUID
+	ID             string
+	UserID         string
+	DriverID       string
 	StartPoint     Point
 	EndPoint       Point
 	Price          int64
@@ -31,6 +31,7 @@ type Trip struct {
 	LastPositionAt *time.Time
 }
 
+// Finish переводит активную поездку в статус completed.
 func (t *Trip) Finish(at time.Time) error {
 	if t.Status != StatusActive {
 		return ErrTripCompleted

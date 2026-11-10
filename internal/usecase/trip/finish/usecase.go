@@ -51,6 +51,7 @@ func (u *Usecase) Execute(ctx context.Context, id string) (model.Trip, error) {
 		finishTime := time.Now().UTC()
 		if err := dTrip.Finish(finishTime); err != nil {
 			return err
+		}
 
 		if err := u.repo.UpdateFinishedStatus(txCtx, id, finishTime); err != nil {
 			return fmt.Errorf("update finished status: %w", err)

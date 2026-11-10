@@ -7,7 +7,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	domain "github.com/Hil-sys/TripGo-autumn/internal/domain/trip"
 	"github.com/Hil-sys/TripGo-autumn/internal/model"
