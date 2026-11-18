@@ -1,21 +1,22 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/go-chi/chi/v5"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-
-	"github.com/Hil-sys/TripGo-autumn/internal/infra/telemetry"
 )
 
-func Metrics(m *telemetry.Metrics) func(http.Handler) http.Handler {
+type MetricsRecorder interface {
+	RecordHTTPRequest(ctx context.Context, duration float64, method, route string, statusCode int)
+	IncActiveRequests(ctx context.Context, method, route string)
+	DecActiveRequests(ctx context.Context, method, route string)
+}
+
+func Metrics(m MetricsRecorder) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if m == nil || m.HTTPDuration == nil {
+			if m == nil {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -26,17 +27,11 @@ func Metrics(m *telemetry.Metrics) func(http.Handler) http.Handler {
 				return
 			}
 
-			route := getRoutePattern(r)
+			route := matchRoute(r.URL.Path)
 			method := r.Method
 
-			activeAttrs := []attribute.KeyValue{
-				attribute.String("http.request.method", method),
-				attribute.String("http.route", route),
-			}
-
-			// Увеличиваем счетчик активных запросов
-			m.HTTPActiveRequests.Add(r.Context(), 1, metric.WithAttributes(activeAttrs...))
-			defer m.HTTPActiveRequests.Add(r.Context(), -1, metric.WithAttributes(activeAttrs...))
+			m.IncActiveRequests(r.Context(), method, route)
+			defer m.DecActiveRequests(r.Context(), method, route)
 
 			start := time.Now()
 			ww := &responseWriterWrapper{
@@ -44,38 +39,40 @@ func Metrics(m *telemetry.Metrics) func(http.Handler) http.Handler {
 				statusCode:     http.StatusOK,
 			}
 
+			panicked := true
+			defer func() {
+				duration := time.Since(start).Seconds()
+				statusCode := ww.statusCode
+				if panicked {
+					statusCode = http.StatusInternalServerError
+				}
+				m.RecordHTTPRequest(r.Context(), duration, method, route, statusCode)
+			}()
+
 			next.ServeHTTP(ww, r)
-
-			duration := time.Since(start).Seconds()
-
-			// Повторно сверяем маршрут после работы роутера Chi
-			if p := getRoutePattern(r); p != "" {
-				route = p
-			}
-
-			m.HTTPDuration.Record(r.Context(), duration, metric.WithAttributes(
-				attribute.String("http.request.method", method),
-				attribute.String("http.route", route),
-				attribute.Int("http.response.status_code", ww.statusCode),
-			))
+			panicked = false
 		})
 	}
 }
 
-// getRoutePattern возвращает шаблон маршрута без подстановки конкретных UUID
-func getRoutePattern(r *http.Request) string {
-	if rctx := chi.RouteContext(r.Context()); rctx != nil {
-		if pattern := rctx.RoutePattern(); pattern != "" {
-			return pattern
-		}
+// matchRoute возвращает фиксированный шаблон маршрута или "unmatched" для неизвестных путей,
+// предотвращая разрастание cardinality временных рядов в Prometheus.
+func matchRoute(path string) string {
+	if path == "/api/v1/trips" {
+		return "/api/v1/trips"
 	}
-
-	path := r.URL.Path
 	if strings.HasPrefix(path, "/api/v1/trips/") {
-		if strings.HasSuffix(path, "/finish") {
+		rest := strings.TrimPrefix(path, "/api/v1/trips/")
+		if rest == "" {
+			return "unmatched"
+		}
+		parts := strings.Split(rest, "/")
+		if len(parts) == 1 && parts[0] != "" {
+			return "/api/v1/trips/{tripId}"
+		}
+		if len(parts) == 2 && parts[1] == "finish" {
 			return "/api/v1/trips/{tripId}/finish"
 		}
-		return "/api/v1/trips/{tripId}"
 	}
-	return path
+	return "unmatched"
 }

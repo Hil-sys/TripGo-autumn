@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	metricApi "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -22,7 +23,7 @@ type Metrics struct {
 	TripsCompleted     metricApi.Int64Counter
 }
 
-func InitMeter(ctx context.Context, endpoint string, serviceName string) (*Metrics, func(context.Context) error, error) {
+func InitMeter(ctx context.Context, endpoint, serviceName string) (*Metrics, func(context.Context) error, error) {
 	if endpoint == "" {
 		return &Metrics{}, func(context.Context) error { return nil }, nil
 	}
@@ -123,4 +124,44 @@ func InitMeter(ctx context.Context, endpoint string, serviceName string) (*Metri
 	}
 
 	return metrics, mp.Shutdown, nil
+}
+
+func (m *Metrics) TripCreated(ctx context.Context) {
+	if m != nil && m.TripsCreated != nil {
+		m.TripsCreated.Add(ctx, 1)
+	}
+}
+
+func (m *Metrics) TripCompleted(ctx context.Context) {
+	if m != nil && m.TripsCompleted != nil {
+		m.TripsCompleted.Add(ctx, 1)
+	}
+}
+
+func (m *Metrics) RecordHTTPRequest(ctx context.Context, duration float64, method, route string, statusCode int) {
+	if m != nil && m.HTTPDuration != nil {
+		m.HTTPDuration.Record(ctx, duration, metricApi.WithAttributes(
+			attribute.String("http.request.method", method),
+			attribute.String("http.route", route),
+			attribute.Int("http.response.status_code", statusCode),
+		))
+	}
+}
+
+func (m *Metrics) IncActiveRequests(ctx context.Context, method, route string) {
+	if m != nil && m.HTTPActiveRequests != nil {
+		m.HTTPActiveRequests.Add(ctx, 1, metricApi.WithAttributes(
+			attribute.String("http.request.method", method),
+			attribute.String("http.route", route),
+		))
+	}
+}
+
+func (m *Metrics) DecActiveRequests(ctx context.Context, method, route string) {
+	if m != nil && m.HTTPActiveRequests != nil {
+		m.HTTPActiveRequests.Add(ctx, -1, metricApi.WithAttributes(
+			attribute.String("http.request.method", method),
+			attribute.String("http.route", route),
+		))
+	}
 }

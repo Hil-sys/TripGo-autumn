@@ -11,7 +11,6 @@ import (
 	"github.com/Hil-sys/TripGo-autumn/internal/generated"
 	"github.com/Hil-sys/TripGo-autumn/internal/http/domainerror"
 	"github.com/Hil-sys/TripGo-autumn/internal/http/trip"
-	"github.com/Hil-sys/TripGo-autumn/internal/infra/telemetry"
 	"github.com/Hil-sys/TripGo-autumn/internal/model"
 	usecase "github.com/Hil-sys/TripGo-autumn/internal/usecase/trip/create"
 )
@@ -20,17 +19,21 @@ type usecaseInterface interface {
 	Execute(ctx context.Context, input usecase.Input) (model.Trip, error)
 }
 
+type metricsRecorder interface {
+	TripCreated(ctx context.Context)
+}
+
 type Handler struct {
 	uc      usecaseInterface
-	metrics *telemetry.Metrics
+	metrics metricsRecorder
 	logger  *slog.Logger
 }
 
-func NewHandler(uc usecaseInterface, metrics *telemetry.Metrics) *Handler {
+func NewHandler(uc usecaseInterface, metrics metricsRecorder, logger *slog.Logger) *Handler {
 	return &Handler{
 		uc:      uc,
 		metrics: metrics,
-		logger:  slog.Default(),
+		logger:  logger,
 	}
 }
 
@@ -67,9 +70,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Фиксируем метрику tripgo.trips.created
-	if h.metrics != nil && h.metrics.TripsCreated != nil {
-		h.metrics.TripsCreated.Add(r.Context(), 1)
+	// Фиксируем метрику создания поездки через интерфейс
+	if h.metrics != nil {
+		h.metrics.TripCreated(r.Context())
 	}
 
 	w.Header().Set("Location", fmt.Sprintf("/api/v1/trips/%s", created.ID))

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -33,10 +34,16 @@ import (
 const serviceName = "trip-service"
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("application exited with error", slog.Any("error", err))
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("failed to load configuration", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("load configuration: %w", err)
 	}
 
 	logger := telemetry.NewLogger(cfg.LogLevel, serviceName)
@@ -74,8 +81,7 @@ func main() {
 	// 3. Инфраструктура базы данных и транзакций
 	pool, err := postgres.NewPool(ctx, cfg.Database)
 	if err != nil {
-		logger.ErrorContext(ctx, "failed to connect to database", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("connect to database: %w", err)
 	}
 	defer pool.Close()
 
@@ -90,9 +96,9 @@ func main() {
 
 	// 5. HTTP-обработчики и адаптер ServerInterface
 	serverAdapter := httpserver.NewServer(
-		createhandler.NewHandler(createUseCase, metrics),
-		gethandler.NewHandler(getUseCase),
-		finishhandler.NewHandler(finishUseCase, metrics),
+		createhandler.NewHandler(createUseCase, metrics, logger),
+		gethandler.NewHandler(getUseCase, logger),
+		finishhandler.NewHandler(finishUseCase, metrics, logger),
 		systemhandler.NewHandler(repo),
 	)
 
@@ -115,16 +121,20 @@ func main() {
 		IdleTimeout:       cfg.HTTP.IdleTimeout,
 	}
 
+	serverErr := make(chan error, 1)
 	go func() {
 		logger.InfoContext(ctx, "starting http server", slog.String("addr", cfg.HTTP.Addr))
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.ErrorContext(ctx, "http server crashed", slog.Any("error", err))
-			os.Exit(1)
+			serverErr <- err
 		}
 	}()
 
-	<-ctx.Done()
-	logger.Info("shutting down service gracefully")
+	select {
+	case err := <-serverErr:
+		return fmt.Errorf("http server crashed: %w", err)
+	case <-ctx.Done():
+		logger.Info("shutting down service gracefully")
+	}
 
 	// 8. Graceful shutdown по SHUTDOWN_TIMEOUT
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.HTTP.ShutdownTimeout)
@@ -135,4 +145,5 @@ func main() {
 	}
 
 	logger.Info("service exited cleanly")
+	return nil
 }

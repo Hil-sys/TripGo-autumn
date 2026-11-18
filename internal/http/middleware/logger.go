@@ -9,18 +9,11 @@ import (
 type responseWriterWrapper struct {
 	http.ResponseWriter
 	statusCode int
-	bytesCount int
 }
 
 func (rw *responseWriterWrapper) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
-}
-
-func (rw *responseWriterWrapper) Write(b []byte) (int, error) {
-	n, err := rw.ResponseWriter.Write(b)
-	rw.bytesCount += n
-	return n, err
 }
 
 func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
@@ -37,24 +30,31 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 				statusCode:     http.StatusOK,
 			}
 
+			route := matchRoute(r.URL.Path)
+			panicked := true
+			defer func() {
+				duration := time.Since(start)
+				statusCode := ww.statusCode
+				if panicked {
+					statusCode = http.StatusInternalServerError
+				}
+
+				attrs := []any{
+					slog.String("method", r.Method),
+					slog.String("route", route),
+					slog.Int("status", statusCode),
+					slog.Int64("duration_ms", duration.Milliseconds()),
+				}
+
+				if statusCode >= http.StatusInternalServerError {
+					logger.ErrorContext(r.Context(), "request handled", attrs...)
+				} else {
+					logger.InfoContext(r.Context(), "request handled", attrs...)
+				}
+			}()
+
 			next.ServeHTTP(ww, r)
-
-			duration := time.Since(start)
-
-			attrs := []any{
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.Int("status", ww.statusCode),
-				slog.Duration("duration", duration),
-				slog.Int("bytes", ww.bytesCount),
-				slog.String("remote_addr", r.RemoteAddr),
-			}
-
-			if ww.statusCode >= 500 {
-				logger.ErrorContext(r.Context(), "http request completed with server error", attrs...)
-			} else {
-				logger.InfoContext(r.Context(), "http request completed", attrs...)
-			}
+			panicked = false
 		})
 	}
 }

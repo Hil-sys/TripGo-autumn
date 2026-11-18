@@ -36,9 +36,9 @@ func TestUsecase_Execute(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name: "validation failure: not a uuid",
-			id:   "invalid-id",
-			setupMocks: func(r *MocktripRepository) {},
+			name:          "validation failure: not a uuid",
+			id:            "invalid-id",
+			setupMocks:    func(r *MocktripRepository) {},
 			expectedError: domain.ValidationError{Field: "id", Reason: "must be a valid UUID"},
 		},
 		{

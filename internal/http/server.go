@@ -3,7 +3,7 @@ package http
 import (
 	"net/http"
 
-	openapi_types "github.com/oapi-codegen/runtime/types"
+	openapitypes "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hil-sys/TripGo-autumn/internal/generated"
 	systemhandler "github.com/Hil-sys/TripGo-autumn/internal/http/system"
@@ -39,11 +39,11 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.Create
 	s.createHandler.Handle(w, r)
 }
 
-func (s *Server) GetTrip(w http.ResponseWriter, r *http.Request, tripId openapi_types.UUID) {
+func (s *Server) GetTrip(w http.ResponseWriter, r *http.Request, tripId openapitypes.UUID) {
 	s.getHandler.Handle(w, r, tripId.String())
 }
 
-func (s *Server) FinishTrip(w http.ResponseWriter, r *http.Request, tripId openapi_types.UUID) {
+func (s *Server) FinishTrip(w http.ResponseWriter, r *http.Request, tripId openapitypes.UUID) {
 	s.finishHandler.Handle(w, r, tripId.String())
 }
 
@@ -55,10 +55,10 @@ func (s *Server) Ready(w http.ResponseWriter, r *http.Request) {
 	s.systemHandler.Ready(w, r)
 }
 
-func (s *Server) CreateTripPosition(w http.ResponseWriter, r *http.Request, _ openapi_types.UUID) {
+func (s *Server) CreateTripPosition(w http.ResponseWriter, r *http.Request, _ openapitypes.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-func (s *Server) ListTripPositions(w http.ResponseWriter, r *http.Request, _ openapi_types.UUID) {
+func (s *Server) ListTripPositions(w http.ResponseWriter, r *http.Request, _ openapitypes.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }

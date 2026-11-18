@@ -2,7 +2,6 @@ package trip
 
 import (
 	"github.com/google/uuid"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/Hil-sys/TripGo-autumn/internal/generated"
 	"github.com/Hil-sys/TripGo-autumn/internal/model"
@@ -16,9 +15,9 @@ func ToAPI(t model.Trip) api.Trip {
 	status := api.TripStatus(t.Status)
 
 	return api.Trip{
-		Id:       openapi_types.UUID(tripUUID),
-		UserId:   openapi_types.UUID(userID),
-		DriverId: openapi_types.UUID(driverUUID),
+		Id:       tripUUID,
+		UserId:   userID,
+		DriverId: driverUUID,
 		StartPoint: api.Coordinates{
 			Latitude:  t.StartPoint.Latitude,
 			Longitude: t.StartPoint.Longitude,

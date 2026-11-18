@@ -69,6 +69,16 @@ linters:
               desc: usecase работает через интерфейсы, а не через драйвер бд
             - pkg: github.com/Masterminds/squirrel
               desc: usecase не строит SQL
+            - pkg: github.com/Hil-sys/TripGo-autumn/internal/generated
+              desc: usecase не знает про api
+        http:
+          files:
+            - "**/internal/http/**"
+          deny:
+            - pkg: github.com/Hil-sys/TripGo-autumn/internal/repository
+              desc: http не знает про репозитории
+            - pkg: github.com/Hil-sys/TripGo-autumn/internal/infra
+              desc: http не знает про инфраструктуру
 
     # Запрещает обращения через идентификатор с подчёркиванием, поэтому пакеты
     # называем без snake_case: internal/adapter/http, а не internal/adapter/http_server.
@@ -101,6 +111,7 @@ linters:
       # сгенерированный по OpenAPI и protobuf код не линтуем
       - api/
       - gen/
+      - internal/generated/
 
 formatters:
   enable:
@@ -114,7 +125,9 @@ formatters:
         - default
         - localmodule
     gofumpt:
-      extra-rules: true
+      extra:
+        group-params: true
+        clothe-returns: true
 
   exclusions:
     generated: lax
@@ -122,3 +135,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - internal/generated/

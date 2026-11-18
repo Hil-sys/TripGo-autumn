@@ -14,7 +14,7 @@ import (
 )
 
 // InitTracer инициализирует OpenTelemetry TracerProvider через OTLP HTTP-экспортер.
-func InitTracer(ctx context.Context, endpoint string, serviceName string) (func(context.Context) error, error) {
+func InitTracer(ctx context.Context, endpoint, serviceName string) (func(context.Context) error, error) {
 	if endpoint == "" {
 		return func(context.Context) error { return nil }, nil
 	}
