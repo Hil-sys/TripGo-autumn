@@ -3,6 +3,8 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/otel"
@@ -12,6 +14,41 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
+
+// samplerFromEnv читает OTEL_TRACES_SAMPLER (и OTEL_TRACES_SAMPLER_ARG для ratio)
+// и возвращает соответствующий Sampler. Поддерживаемые значения:
+//   - always_on  — AlwaysSample (по умолчанию)
+//   - always_off — NeverSample
+//   - traceidratio — TraceIDRatioBased(arg), arg из OTEL_TRACES_SAMPLER_ARG
+//   - parentbased_always_on  — ParentBased(AlwaysSample)
+//   - parentbased_always_off — ParentBased(NeverSample)
+//   - parentbased_traceidratio — ParentBased(TraceIDRatioBased(arg))
+func samplerFromEnv() sdktrace.Sampler {
+	name := strings.ToLower(strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER")))
+
+	ratio := func() float64 {
+		arg := strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER_ARG"))
+		if v, err := strconv.ParseFloat(arg, 64); err == nil && v >= 0 && v <= 1 {
+			return v
+		}
+		return 1.0
+	}
+
+	switch name {
+	case "always_off":
+		return sdktrace.NeverSample()
+	case "traceidratio":
+		return sdktrace.TraceIDRatioBased(ratio())
+	case "parentbased_always_on":
+		return sdktrace.ParentBased(sdktrace.AlwaysSample())
+	case "parentbased_always_off":
+		return sdktrace.ParentBased(sdktrace.NeverSample())
+	case "parentbased_traceidratio":
+		return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(ratio()))
+	default: // "always_on" или пусто
+		return sdktrace.AlwaysSample()
+	}
+}
 
 // InitTracer инициализирует OpenTelemetry TracerProvider через OTLP HTTP-экспортер.
 func InitTracer(ctx context.Context, endpoint, serviceName string) (func(context.Context) error, error) {
@@ -46,7 +83,7 @@ func InitTracer(ctx context.Context, endpoint, serviceName string) (func(context
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSampler(samplerFromEnv()),
 	)
 
 	otel.SetTracerProvider(tp)
