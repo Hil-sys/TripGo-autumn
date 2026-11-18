@@ -1,23 +1,13 @@
 package finish
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/Hil-sys/TripGo-autumn/internal/http/domainerror"
 	"github.com/Hil-sys/TripGo-autumn/internal/http/trip"
-	"github.com/Hil-sys/TripGo-autumn/internal/model"
 )
-
-type usecaseInterface interface {
-	Execute(ctx context.Context, id string) (model.Trip, error)
-}
-
-type metricsRecorder interface {
-	TripCompleted(ctx context.Context)
-}
 
 type Handler struct {
 	uc      usecaseInterface
