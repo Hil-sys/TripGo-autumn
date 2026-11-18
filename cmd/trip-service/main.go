@@ -91,7 +91,7 @@ func run() error {
 	txManager := transaction.NewTxManager(pool)
 
 	// 4. Репозитории и сценарии бизнес-логики (Use Cases)
-	repo := triprepo.NewRepository(txManager, cfg.Database.QueryTimeout, metrics)
+	repo := triprepo.NewRepository(txManager, cfg.Database.QueryTimeout)
 
 	createUseCase := createuc.New(repo, txManager, logger)
 	getUseCase := getuc.New(repo)
@@ -107,10 +107,10 @@ func run() error {
 
 	// 6. Роутер и Middleware цепочка
 	r := chi.NewRouter()
-	r.Use(otelhttp.NewMiddleware(serviceName))
-	r.Use(middleware.Metrics(metrics))
-	r.Use(middleware.Logger(logger))
 	r.Use(middleware.Recovery(logger))
+	r.Use(otelhttp.NewMiddleware(serviceName))
+	r.Use(middleware.Logger(logger))
+	r.Use(middleware.Metrics(metrics))
 
 	api.HandlerWithOptions(serverAdapter, api.ChiServerOptions{
 		BaseRouter: r,
