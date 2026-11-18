@@ -11,6 +11,14 @@ import (
 	"github.com/Hil-sys/TripGo-autumn/internal/domain/trip"
 )
 
+const (
+	reasonCannotBeNegative    = "cannot be negative"
+	reasonCoordinatesOutRange = "coordinates out of range"
+	fieldPrice                = "price"
+	fieldStartPoint           = "start_point"
+	fieldEndPoint             = "end_point"
+)
+
 func TestTrip_Finish(t *testing.T) {
 	t.Parallel()
 
@@ -151,8 +159,8 @@ func TestValidateCreate(t *testing.T) {
 			start:         validStart,
 			end:           validEnd,
 			price:         -1,
-			expectedErr:   trip.ValidationError{Field: "price", Reason: "cannot be negative"},
-			expectedField: "price",
+			expectedErr:   trip.ValidationError{Field: fieldPrice, Reason: reasonCannotBeNegative},
+			expectedField: fieldPrice,
 		},
 		{
 			name:          "invalid: start latitude out of range (> 90)",
@@ -161,8 +169,8 @@ func TestValidateCreate(t *testing.T) {
 			start:         trip.Point{Latitude: 90.0001, Longitude: 30.0},
 			end:           validEnd,
 			price:         100,
-			expectedErr:   trip.ValidationError{Field: "start_point", Reason: "coordinates out of range"},
-			expectedField: "start_point",
+			expectedErr:   trip.ValidationError{Field: fieldStartPoint, Reason: reasonCoordinatesOutRange},
+			expectedField: fieldStartPoint,
 		},
 		{
 			name:          "invalid: start latitude out of range (< -90)",
@@ -171,8 +179,8 @@ func TestValidateCreate(t *testing.T) {
 			start:         trip.Point{Latitude: -90.0001, Longitude: 30.0},
 			end:           validEnd,
 			price:         100,
-			expectedErr:   trip.ValidationError{Field: "start_point", Reason: "coordinates out of range"},
-			expectedField: "start_point",
+			expectedErr:   trip.ValidationError{Field: fieldStartPoint, Reason: reasonCoordinatesOutRange},
+			expectedField: fieldStartPoint,
 		},
 		{
 			name:          "invalid: start longitude out of range (> 180)",
@@ -181,8 +189,8 @@ func TestValidateCreate(t *testing.T) {
 			start:         trip.Point{Latitude: 50.0, Longitude: 180.0001},
 			end:           validEnd,
 			price:         100,
-			expectedErr:   trip.ValidationError{Field: "start_point", Reason: "coordinates out of range"},
-			expectedField: "start_point",
+			expectedErr:   trip.ValidationError{Field: fieldStartPoint, Reason: reasonCoordinatesOutRange},
+			expectedField: fieldStartPoint,
 		},
 		{
 			name:          "invalid: start longitude out of range (< -180)",
@@ -191,8 +199,8 @@ func TestValidateCreate(t *testing.T) {
 			start:         trip.Point{Latitude: 50.0, Longitude: -180.0001},
 			end:           validEnd,
 			price:         100,
-			expectedErr:   trip.ValidationError{Field: "start_point", Reason: "coordinates out of range"},
-			expectedField: "start_point",
+			expectedErr:   trip.ValidationError{Field: fieldStartPoint, Reason: reasonCoordinatesOutRange},
+			expectedField: fieldStartPoint,
 		},
 		{
 			name:          "invalid: end latitude out of range (> 90)",
@@ -201,8 +209,8 @@ func TestValidateCreate(t *testing.T) {
 			start:         validStart,
 			end:           trip.Point{Latitude: 90.1, Longitude: 30.0},
 			price:         100,
-			expectedErr:   trip.ValidationError{Field: "end_point", Reason: "coordinates out of range"},
-			expectedField: "end_point",
+			expectedErr:   trip.ValidationError{Field: fieldEndPoint, Reason: reasonCoordinatesOutRange},
+			expectedField: fieldEndPoint,
 		},
 		{
 			name:          "invalid: end longitude out of range (< -180)",
@@ -211,8 +219,8 @@ func TestValidateCreate(t *testing.T) {
 			start:         validStart,
 			end:           trip.Point{Latitude: 50.0, Longitude: -180.1},
 			price:         100,
-			expectedErr:   trip.ValidationError{Field: "end_point", Reason: "coordinates out of range"},
-			expectedField: "end_point",
+			expectedErr:   trip.ValidationError{Field: fieldEndPoint, Reason: reasonCoordinatesOutRange},
+			expectedField: fieldEndPoint,
 		},
 	}
 
@@ -241,8 +249,8 @@ func TestValidationError_Error(t *testing.T) {
 	t.Parallel()
 
 	err := trip.ValidationError{
-		Field:  "price",
-		Reason: "cannot be negative",
+		Field:  fieldPrice,
+		Reason: reasonCannotBeNegative,
 	}
 
 	assert.Equal(t, `invalid field "price": cannot be negative`, err.Error())
