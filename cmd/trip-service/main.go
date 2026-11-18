@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,8 +16,10 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/Hil-sys/TripGo-autumn/internal/config"
+	domain "github.com/Hil-sys/TripGo-autumn/internal/domain/trip"
 	"github.com/Hil-sys/TripGo-autumn/internal/generated"
 	httpserver "github.com/Hil-sys/TripGo-autumn/internal/http"
+	"github.com/Hil-sys/TripGo-autumn/internal/http/domainerror"
 	"github.com/Hil-sys/TripGo-autumn/internal/http/middleware"
 	systemhandler "github.com/Hil-sys/TripGo-autumn/internal/http/system"
 	createhandler "github.com/Hil-sys/TripGo-autumn/internal/http/trip/create"
@@ -109,7 +112,23 @@ func run() error {
 	r.Use(middleware.Logger(logger))
 	r.Use(middleware.Recovery(logger))
 
-	api.HandlerFromMux(serverAdapter, r)
+	api.HandlerWithOptions(serverAdapter, api.ChiServerOptions{
+		BaseRouter: r,
+		ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			field := "tripId"
+			var invalidParamErr *api.InvalidParamFormatError
+			if errors.As(err, &invalidParamErr) {
+				field = invalidParamErr.ParamName
+			}
+			status, prob := domainerror.Problem(
+				domain.ValidationError{Field: field, Reason: "must be a valid UUID"},
+				r.URL.Path,
+			)
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(status)
+			_ = json.NewEncoder(w).Encode(prob)
+		},
+	})
 
 	// 7. Конфигурация HTTP-сервера с таймаутами
 	httpServer := &http.Server{
