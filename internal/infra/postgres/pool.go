@@ -22,7 +22,6 @@ func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, err
 	poolConfig.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
 
 	// otelpgx создаёт OTEL-спаны для каждого SQL-запроса и записывает метрики
-	// (db.client.operation.duration) без ручного замера времени в репозитории.
 	poolConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	initCtx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)

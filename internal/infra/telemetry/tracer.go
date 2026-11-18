@@ -15,14 +15,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-// samplerFromEnv читает OTEL_TRACES_SAMPLER (и OTEL_TRACES_SAMPLER_ARG для ratio)
-// и возвращает соответствующий Sampler. Поддерживаемые значения:
-//   - always_on  — AlwaysSample (по умолчанию)
-//   - always_off — NeverSample
-//   - traceidratio — TraceIDRatioBased(arg), arg из OTEL_TRACES_SAMPLER_ARG
-//   - parentbased_always_on  — ParentBased(AlwaysSample)
-//   - parentbased_always_off — ParentBased(NeverSample)
-//   - parentbased_traceidratio — ParentBased(TraceIDRatioBased(arg))
+
 func samplerFromEnv() sdktrace.Sampler {
 	name := strings.ToLower(strings.TrimSpace(os.Getenv("OTEL_TRACES_SAMPLER")))
 
