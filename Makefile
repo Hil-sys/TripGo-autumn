@@ -6,7 +6,7 @@ endif
 DATABASE_URL ?= postgres://tripgo:tripgo@localhost:5432/tripgo?sslmode=disable
 MIGRATIONS_DIR ?= migrations
 
-.PHONY: all build run migrate migrate-down generate test lint clean
+.PHONY: all build run migrate migrate-down generate test test-integration lint clean
 
 all: lint test build
 
@@ -40,6 +40,11 @@ test:
 	go test -v -race -count=2 -coverprofile=coverage.out -coverpkg=./internal/domain/...,./internal/usecase/... ./...
 	@echo "=== Total coverage for internal/domain and internal/usecase ==="
 	@go tool cover -func=coverage.out | grep total
+
+# Запуск интеграционных тестов с реальной базой данных PostgreSQL
+test-integration:
+	go test -v -race -count=1 -tags=integration ./internal/repository/trip/...
+
 
 # Статический анализ кода через golangci-lint
 lint:

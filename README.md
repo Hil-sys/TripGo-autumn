@@ -35,10 +35,11 @@
 Все проверки выполняются с жесткими флагами согласно стандартам разработки:
 
 ```bash
-make test      # Запуск unit-тестов с флагами race detector (-race) и проверкой независимости (-count=2)
-make lint      # Статический анализ кода с помощью golangci-lint
-make generate  # Полный цикл кодогенерации (OpenAPI-типы, chi-сервер и mockgen-моки)
-make build     # Компиляция бинарника в bin/trip-service
+make test             # Запуск unit-тестов с флагами race detector (-race) и проверкой независимости (-count=2)
+make test-integration # Запуск интеграционных тестов репозитория с реальным PostgreSQL (требуется DATABASE_URL)
+make lint             # Статический анализ кода с помощью golangci-lint
+make generate         # Полный цикл кодогенерации (OpenAPI-типы, chi-сервер и mockgen-моки)
+make build            # Компиляция бинарника в bin/trip-service
 ```
 
 ---
