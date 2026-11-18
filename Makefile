@@ -35,9 +35,11 @@ generate:
 		contracts/openapi/trip-service.openapi.yaml
 	go generate ./...
 
-# Запуск unit-тестов с детектором гонок и повторным прогоном
+# Запуск unit-тестов с детектором гонок, повторным прогоном и печатью покрытия domain/usecase
 test:
-	go test -v -race -count=2 ./...
+	go test -v -race -count=2 -coverprofile=coverage.out -coverpkg=./internal/domain/...,./internal/usecase/... ./...
+	@echo "=== Total coverage for internal/domain and internal/usecase ==="
+	@go tool cover -func=coverage.out | grep total
 
 # Статический анализ кода через golangci-lint
 lint:
@@ -45,5 +47,5 @@ lint:
 
 # Очистка артефактов сборки
 clean:
-	rm -rf bin/
+	rm -rf bin/ coverage.out
 	
