@@ -18,7 +18,6 @@ import (
 type Metrics struct {
 	HTTPDuration       metricApi.Float64Histogram
 	HTTPActiveRequests metricApi.Int64UpDownCounter
-	DBDuration         metricApi.Float64Histogram
 	TripsCreated       metricApi.Int64Counter
 	TripsCompleted     metricApi.Int64Counter
 }
@@ -85,17 +84,7 @@ func InitMeter(ctx context.Context, endpoint, serviceName string) (*Metrics, fun
 		return nil, nil, fmt.Errorf("create http.server.active_requests: %w", err)
 	}
 
-	// 3. db.client.operation.duration (histogram, секунды)
-	dbDuration, err := meter.Float64Histogram(
-		"db.client.operation.duration",
-		metricApi.WithDescription("Duration of database client operations"),
-		metricApi.WithUnit("s"),
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("create db.client.operation.duration: %w", err)
-	}
-
-	// 4. tripgo.trips.created (counter, штуки)
+	// 3. tripgo.trips.created (counter, штуки)
 	tripsCreated, err := meter.Int64Counter(
 		"tripgo.trips.created",
 		metricApi.WithDescription("Total number of trips created"),
@@ -118,7 +107,6 @@ func InitMeter(ctx context.Context, endpoint, serviceName string) (*Metrics, fun
 	metrics := &Metrics{
 		HTTPDuration:       httpDuration,
 		HTTPActiveRequests: httpActiveRequests,
-		DBDuration:         dbDuration,
 		TripsCreated:       tripsCreated,
 		TripsCompleted:     tripsCompleted,
 	}

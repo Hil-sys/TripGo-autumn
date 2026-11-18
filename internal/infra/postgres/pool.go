@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hil-sys/TripGo-autumn/internal/config"
@@ -19,6 +20,10 @@ func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, err
 	poolConfig.MinConns = cfg.MinConns
 	poolConfig.MaxConnLifetime = cfg.MaxConnLifetime
 	poolConfig.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
+
+	// otelpgx создаёт OTEL-спаны для каждого SQL-запроса и записывает метрики
+	// (db.client.operation.duration) без ручного замера времени в репозитории.
+	poolConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	initCtx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)
 	defer cancel()
