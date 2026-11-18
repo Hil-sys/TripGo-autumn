@@ -1,15 +1,15 @@
-package repository
+package postgres
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Hil-sys/TripGo-autumn/internal/config"
 )
 
-// NewPool принимает изолированную конфигурацию базы данных
 func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	poolConfig, err := pgxpool.ParseConfig(cfg.URL)
 	if err != nil {
@@ -20,6 +20,9 @@ func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, err
 	poolConfig.MinConns = cfg.MinConns
 	poolConfig.MaxConnLifetime = cfg.MaxConnLifetime
 	poolConfig.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
+
+	// otelpgx создаёт OTEL-спаны для каждого SQL-запроса и записывает метрики
+	poolConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	initCtx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)
 	defer cancel()
