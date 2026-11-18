@@ -1,11 +1,14 @@
 package create
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	domain "github.com/Hil-sys/TripGo-autumn/internal/domain/trip"
 	"github.com/Hil-sys/TripGo-autumn/internal/generated"
@@ -15,12 +18,50 @@ import (
 	usecase "github.com/Hil-sys/TripGo-autumn/internal/usecase/trip/create"
 )
 
-type usecaseInterface interface {
-	Execute(ctx context.Context, input usecase.Input) (model.Trip, error)
+type rawCoordinates struct {
+	Latitude  *float64 `json:"latitude"`
+	Longitude *float64 `json:"longitude"`
 }
 
-type metricsRecorder interface {
-	TripCreated(ctx context.Context)
+type rawCreateTripRequest struct {
+	UserID     *uuid.UUID      `json:"user_id"`
+	DriverID   *uuid.UUID      `json:"driver_id"`
+	StartPoint *rawCoordinates `json:"start_point"`
+	EndPoint   *rawCoordinates `json:"end_point"`
+	Price      *int64          `json:"price"`
+}
+
+const errNullOrMissing = "cannot be null or missing"
+
+func (req *rawCreateTripRequest) validate() error {
+	if req.UserID == nil || *req.UserID == uuid.Nil {
+		return domain.ValidationError{Field: "user_id", Reason: "cannot be empty or null"}
+	}
+	if req.DriverID == nil || *req.DriverID == uuid.Nil {
+		return domain.ValidationError{Field: "driver_id", Reason: "cannot be empty or null"}
+	}
+	if req.StartPoint == nil {
+		return domain.ValidationError{Field: "start_point", Reason: errNullOrMissing}
+	}
+	if req.StartPoint.Latitude == nil {
+		return domain.ValidationError{Field: "start_point.latitude", Reason: errNullOrMissing}
+	}
+	if req.StartPoint.Longitude == nil {
+		return domain.ValidationError{Field: "start_point.longitude", Reason: errNullOrMissing}
+	}
+	if req.EndPoint == nil {
+		return domain.ValidationError{Field: "end_point", Reason: errNullOrMissing}
+	}
+	if req.EndPoint.Latitude == nil {
+		return domain.ValidationError{Field: "end_point.latitude", Reason: errNullOrMissing}
+	}
+	if req.EndPoint.Longitude == nil {
+		return domain.ValidationError{Field: "end_point.longitude", Reason: errNullOrMissing}
+	}
+	if req.Price == nil {
+		return domain.ValidationError{Field: "price", Reason: errNullOrMissing}
+	}
+	return nil
 }
 
 type Handler struct {
@@ -38,8 +79,11 @@ func NewHandler(uc usecaseInterface, metrics metricsRecorder, logger *slog.Logge
 }
 
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
-	var req api.CreateTripJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	var req rawCreateTripRequest
+	if err := dec.Decode(&req); err != nil {
 		status, prob := domainerror.Problem(
 			domain.ValidationError{Field: "body", Reason: fmt.Sprintf("invalid json payload: %v", err)},
 			r.URL.Path,
@@ -48,22 +92,38 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		status, prob := domainerror.Problem(
+			domain.ValidationError{Field: "body", Reason: "unexpected data after json object"},
+			r.URL.Path,
+		)
+		writeProblem(w, status, prob)
+		return
+	}
+
+	if err := req.validate(); err != nil {
+		status, prob := domainerror.Problem(err, r.URL.Path)
+		writeProblem(w, status, prob)
+		return
+	}
+
 	created, err := h.uc.Execute(r.Context(), usecase.Input{
-		UserID:   req.UserId.String(),
-		DriverID: req.DriverId.String(),
+		UserID:   req.UserID.String(),
+		DriverID: req.DriverID.String(),
 		StartPoint: model.Point{
-			Latitude:  req.StartPoint.Latitude,
-			Longitude: req.StartPoint.Longitude,
+			Latitude:  *req.StartPoint.Latitude,
+			Longitude: *req.StartPoint.Longitude,
 		},
 		EndPoint: model.Point{
-			Latitude:  req.EndPoint.Latitude,
-			Longitude: req.EndPoint.Longitude,
+			Latitude:  *req.EndPoint.Latitude,
+			Longitude: *req.EndPoint.Longitude,
 		},
-		Price: req.Price,
+		Price: *req.Price,
 	})
 	if err != nil {
 		status, prob := domainerror.Problem(err, r.URL.Path)
-		if status >= http.StatusInternalServerError {
+		if status >= http.StatusInternalServerError && h.logger != nil {
 			h.logger.ErrorContext(r.Context(), "failed to create trip", slog.Any("error", err))
 		}
 		writeProblem(w, status, prob)
