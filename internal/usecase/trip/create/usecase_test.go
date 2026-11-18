@@ -120,7 +120,7 @@ func TestUsecase_Execute(t *testing.T) {
 
 			tt.setupMocks(repoMock, txMock)
 
-			uc := usecase.New(repoMock, txMock)
+			uc := usecase.New(repoMock, txMock, nil)
 			result, err := uc.Execute(context.Background(), tt.input)
 
 			if tt.expectedError != nil {

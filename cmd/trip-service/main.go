@@ -90,9 +90,9 @@ func run() error {
 	// 4. Репозитории и сценарии бизнес-логики (Use Cases)
 	repo := triprepo.NewRepository(txManager, cfg.Database.QueryTimeout, metrics)
 
-	createUseCase := createuc.New(repo, txManager)
+	createUseCase := createuc.New(repo, txManager, logger)
 	getUseCase := getuc.New(repo)
-	finishUseCase := finishuc.New(repo, txManager)
+	finishUseCase := finishuc.New(repo, txManager, logger)
 
 	// 5. HTTP-обработчики и адаптер ServerInterface
 	serverAdapter := httpserver.NewServer(

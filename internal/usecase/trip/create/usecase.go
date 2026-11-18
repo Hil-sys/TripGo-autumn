@@ -3,6 +3,7 @@ package create
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,12 +15,14 @@ import (
 type Usecase struct {
 	repo      tripRepository
 	txManager txManager
+	logger    *slog.Logger
 }
 
-func New(repo tripRepository, tm txManager) *Usecase {
+func New(repo tripRepository, tm txManager, logger *slog.Logger) *Usecase {
 	return &Usecase{
 		repo:      repo,
 		txManager: tm,
+		logger:    logger,
 	}
 }
 
@@ -77,6 +80,14 @@ func (u *Usecase) Execute(ctx context.Context, input Input) (model.Trip, error) 
 	})
 	if err != nil {
 		return model.Trip{}, err
+	}
+
+	if u.logger != nil {
+		u.logger.InfoContext(ctx, "trip created",
+			slog.String("trip_id", trip.ID),
+			slog.String("user_id", trip.UserID),
+			slog.String("driver_id", trip.DriverID),
+		)
 	}
 
 	return trip, nil

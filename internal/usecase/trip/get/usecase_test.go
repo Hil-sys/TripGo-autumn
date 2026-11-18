@@ -66,7 +66,7 @@ func TestUsecase_Execute(t *testing.T) {
 			res, err := uc.Execute(context.Background(), tt.id)
 
 			if tt.expectedError != nil {
-				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedError)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tripID, res.ID)
